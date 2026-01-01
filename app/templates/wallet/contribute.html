@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Contribute - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> Contribute to "{{ group.name }}"
+                </h5>
+            </div>
+            <div class="card-body p-4">
+
+                <!-- Current Balance Info -->
+                <div class="alert alert-info">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <strong>Wallet Balance</strong><br>
+                            <span class="fs-4">₹{{ "%.2f"|format(wallet.balance) }}</span>
+                        </div>
+                        <div class="col-6">
+                            <strong>Your Contribution</strong><br>
+                            <span class="fs-4">₹{{ "%.2f"|format(user_contribution) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('wallet.contribute', group_id=group.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Contribution Amount (₹) *</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" name="amount" class="form-control"
+                                   placeholder="Enter amount" min="1" step="0.01" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Description (Optional)</label>
+                        <input type="text" name="description" class="form-control"
+                               placeholder="e.g., Monthly contribution">
+                    </div>
+
+                    <!-- Quick Amount Buttons -->
+                    <div class="mb-4">
+                        <label class="form-label">Quick Select:</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-success quick-amount" data-amount="100">₹100</button>
+                            <button type="button" class="btn btn-outline-success quick-amount" data-amount="500">₹500</button>
+                            <button type="button" class="btn btn-outline-success quick-amount" data-amount="1000">₹1,000</button>
+                            <button type="button" class="btn btn-outline-success quick-amount" data-amount="5000">₹5,000</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-lg"></i> Contribute
+                        </button>
+                        <a href="{{ url_for('wallet.view_wallet', group_id=group.id) }}"
+                           class="btn btn-outline-secondary btn-lg">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Quick amount buttons
+document.querySelectorAll('.quick-amount').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelector('input[name="amount"]').value = this.dataset.amount;
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+
+{% block title %}Wallet - {{ group.name }}{% endblock %}
+
+{% block content %}
+<!-- Wallet Header -->
+<div class="card mb-4 bg-primary text-white">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h2><i class="bi bi-wallet2"></i> Group Wallet</h2>
+                <p class="mb-0">{{ group.name }}</p>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <h1 class="display-4 mb-0">₹{{ "%.2f"|format(wallet.balance) }}</h1>
+                <small>Available Balance</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="bi bi-arrow-down-circle text-success" style="font-size: 2rem;"></i>
+                <h3 class="mt-2 text-success">₹{{ "%.2f"|format(summary.total_contributed) }}</h3>
+                <p class="text-muted mb-0">Total Contributed</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="bi bi-arrow-up-circle text-danger" style="font-size: 2rem;"></i>
+                <h3 class="mt-2 text-danger">₹{{ "%.2f"|format(summary.total_disbursed) }}</h3>
+                <p class="text-muted mb-0">Total Disbursed</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="bi bi-arrow-repeat text-info" style="font-size: 2rem;"></i>
+                <h3 class="mt-2 text-info">₹{{ "%.2f"|format(summary.total_repaid) }}</h3>
+                <p class="text-muted mb-0">Total Repaid</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Contribute Section -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-plus-circle"></i> Contribute to Wallet
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Your total contribution: <strong>₹{{ "%.2f"|format(user_contribution) }}</strong>
+                </p>
+                <a href="{{ url_for('wallet.contribute', group_id=group.id) }}" 
+                   class="btn btn-success w-100">
+                    <i class="bi bi-plus-lg"></i> Make Contribution
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Transaction Summary -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-list-ul"></i> Transaction Summary
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Contributions</span>
+                        <span class="badge bg-success">{{ summary.transaction_counts.contributions }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Disbursements</span>
+                        <span class="badge bg-danger">{{ summary.transaction_counts.disbursements }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Repayments</span>
+                        <span class="badge bg-info">{{ summary.transaction_counts.repayments }}</span>
+                    </li>
+                </ul>
+                <a href="{{ url_for('wallet.transactions', group_id=group.id) }}" 
+                   class="btn btn-outline-info w-100 mt-3">
+                    <i class="bi bi-clock-history"></i> View All Transactions
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Disbursements (Admin Only) -->
+{% if is_admin and pending_disbursements %}
+<div class="card mb-4 border-warning">
+    <div class="card-header bg-warning text-dark">
+        <i class="bi bi-exclamation-triangle"></i> 
+        Pending Disbursements ({{ pending_disbursements|length }})
+    </div>
+    <div class="card-body">
+        <p class="text-muted">These approved loans are waiting to be disbursed:</p>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Borrower</th>
+                        <th>Amount</th>
+                        <th>Approved On</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in pending_disbursements %}
+                    <tr>
+                        <td>{{ loan.requester.name }}</td>
+                        <td><strong>₹{{ "%.2f"|format(loan.approved_amount or loan.amount) }}</strong></td>
+                        <td>{{ loan.created_at.strftime('%d %b %Y') }}</td>
+                        <td>
+                            {% if wallet.balance >= (loan.approved_amount or loan.amount) %}
+                            <form action="{{ url_for('wallet.disburse', loan_id=loan.id) }}" 
+                                  method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-success"
+                                        onclick="return confirm('Disburse ₹{{ loan.approved_amount or loan.amount }} to {{ loan.requester.name }}?')">
+                                    <i class="bi bi-check-lg"></i> Disburse
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="badge bg-danger">Insufficient Balance</span>
+                            {% endif %}
+                            <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}" 
+                               class="btn btn-sm btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Active Loans -->
+{% if active_loans %}
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <i class="bi bi-cash-stack"></i> Active Loans ({{ active_loans|length }})
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Borrower</th>
+                        <th>Loan Amount</th>
+                        <th>Repaid</th>
+                        <th>Remaining</th>
+                        <th>Progress</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in active_loans %}
+                    {% set remaining = loan.approved_amount - loan.total_repaid %}
+                    {% set progress = (loan.total_repaid / loan.approved_amount * 100) if loan.approved_amount else 0 %}
+                    <tr>
+                        <td>
+                            {{ loan.requester.name }}
+                            {% if loan.requester.id == current_user.id %}
+                            <span class="badge bg-info">You</span>
+                            {% endif %}
+                        </td>
+                        <td>₹{{ "%.2f"|format(loan.approved_amount) }}</td>
+                        <td class="text-success">₹{{ "%.2f"|format(loan.total_repaid) }}</td>
+                        <td class="text-danger">₹{{ "%.2f"|format(remaining) }}</td>
+                        <td style="width: 150px;">
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar bg-success" style="width: {{ progress }}%">
+                                    {{ "%.0f"|format(progress) }}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if loan.requester.id == current_user.id %}
+                            <a href="{{ url_for('wallet.repay', loan_id=loan.id) }}" 
+                               class="btn btn-sm btn-warning">
+                                <i class="bi bi-cash"></i> Repay
+                            </a>
+                            {% endif %}
+                            <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}" 
+                               class="btn btn-sm btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Transactions -->
+<div class="card mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history"></i> Recent Transactions</span>
+        <a href="{{ url_for('wallet.transactions', group_id=group.id) }}" class="btn btn-sm btn-outline-primary">
+            View All
+        </a>
+    </div>
+    <div class="card-body">
+        {% if recent_transactions %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in recent_transactions %}
+                    <tr>
+                        <td>{{ txn.created_at.strftime('%d %b, %I:%M %p') }}</td>
+                        <td>
+                            {% if txn.transaction_type == 'contribution' %}
+                            <span class="badge bg-success">Contribution</span>
+                            {% elif txn.transaction_type == 'loan_disbursement' %}
+                            <span class="badge bg-danger">Disbursement</span>
+                            {% else %}
+                            <span class="badge bg-info">Repayment</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if txn.amount > 0 %}
+                            <span class="text-success">+₹{{ "%.2f"|format(txn.amount) }}</span>
+                            {% else %}
+                            <span class="text-danger">₹{{ "%.2f"|format(txn.amount) }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ txn.created_by_user.name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-3">No transactions yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Back Button -->
+<a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to Group
+</a>
+{% endblock %}

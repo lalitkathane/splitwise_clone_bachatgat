@@ -21,14 +21,17 @@ def create_app():
     # Register blueprints
     from app.routes.auth import auth_bp
     from app.routes.groups import groups_bp
-    from app.routes.loans import loans_bp  # ✅ NEW
+    from app.routes.loans import loans_bp
+    from app.routes.wallet import wallet_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(groups_bp)
-    app.register_blueprint(loans_bp)  # ✅ NEW
+    app.register_blueprint(loans_bp)
+    app.register_blueprint(wallet_bp)
 
-    # Create tables
+    # ✅ CREATE ALL TABLES (Keep this for now!)
     with app.app_context():
         db.create_all()
+        print("✅ Database tables created!")
 
     return app

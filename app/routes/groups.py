@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Group, GroupMember, User
+from app.models import Group, GroupMember, User, GroupWallet
+from app.services.wallet_service import create_wallet_for_group
 
 groups_bp = Blueprint('groups', __name__)
 
@@ -10,14 +11,12 @@ groups_bp = Blueprint('groups', __name__)
 @groups_bp.route('/groups')
 @login_required
 def list_groups():
-    # Get all groups where current user is a member
     my_memberships = GroupMember.query.filter_by(user_id=current_user.id).all()
     my_groups = [membership.group for membership in my_memberships]
-
     return render_template('groups/list.html', groups=my_groups)
 
 
-# ============== CREATE NEW GROUP ==============
+# ============== CREATE NEW GROUP (UPDATED - Creates Wallet) ==============
 @groups_bp.route('/groups/create', methods=['GET', 'POST'])
 @login_required
 def create_group():
@@ -25,7 +24,6 @@ def create_group():
         name = request.form.get('name')
         description = request.form.get('description')
 
-        # Validation
         if not name:
             flash('Group name is required!', 'danger')
             return redirect(url_for('groups.create_group'))
@@ -48,7 +46,13 @@ def create_group():
         db.session.add(membership)
         db.session.commit()
 
-        flash(f'Group "{name}" created successfully!', 'success')
+        # ✅ AUTO-CREATE WALLET FOR GROUP
+        try:
+            create_wallet_for_group(new_group.id)
+            flash(f'Group "{name}" created with wallet!', 'success')
+        except Exception as e:
+            flash(f'Group created but wallet error: {str(e)}', 'warning')
+
         return redirect(url_for('groups.view_group', group_id=new_group.id))
 
     return render_template('groups/create.html')
@@ -60,26 +64,27 @@ def create_group():
 def view_group(group_id):
     group = Group.query.get_or_404(group_id)
 
-    # Check if user is member
     if not group.is_member(current_user):
         flash('You are not a member of this group!', 'danger')
         return redirect(url_for('groups.list_groups'))
 
-    # Get all members
     members = GroupMember.query.filter_by(group_id=group_id).all()
 
-    # Check if current user is admin
     current_membership = GroupMember.query.filter_by(
         group_id=group_id,
         user_id=current_user.id
     ).first()
     is_admin = current_membership.role == 'admin'
 
+    # ✅ Get wallet info
+    wallet = group.wallet
+
     return render_template(
         'groups/detail.html',
         group=group,
         members=members,
-        is_admin=is_admin
+        is_admin=is_admin,
+        wallet=wallet
     )
 
 
@@ -89,7 +94,6 @@ def view_group(group_id):
 def add_member(group_id):
     group = Group.query.get_or_404(group_id)
 
-    # Check if user is admin
     membership = GroupMember.query.filter_by(
         group_id=group_id,
         user_id=current_user.id
@@ -101,15 +105,12 @@ def add_member(group_id):
 
     if request.method == 'POST':
         email = request.form.get('email')
-
-        # Find user by email
         user = User.query.filter_by(email=email).first()
 
         if not user:
             flash('User not found with this email!', 'danger')
             return redirect(url_for('groups.add_member', group_id=group_id))
 
-        # Check if already a member
         existing = GroupMember.query.filter_by(
             group_id=group_id,
             user_id=user.id
@@ -119,7 +120,6 @@ def add_member(group_id):
             flash('User is already a member!', 'warning')
             return redirect(url_for('groups.add_member', group_id=group_id))
 
-        # Add member
         new_member = GroupMember(
             group_id=group_id,
             user_id=user.id,
@@ -140,7 +140,6 @@ def add_member(group_id):
 def remove_member(group_id, user_id):
     group = Group.query.get_or_404(group_id)
 
-    # Check if current user is admin
     current_membership = GroupMember.query.filter_by(
         group_id=group_id,
         user_id=current_user.id
@@ -150,12 +149,10 @@ def remove_member(group_id, user_id):
         flash('Only admin can remove members!', 'danger')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
-    # Cannot remove yourself if you're the only admin
     if user_id == current_user.id:
         flash('You cannot remove yourself!', 'danger')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
-    # Find and remove member
     membership = GroupMember.query.filter_by(
         group_id=group_id,
         user_id=user_id
@@ -182,7 +179,6 @@ def leave_group(group_id):
         flash('You are not a member of this group!', 'danger')
         return redirect(url_for('groups.list_groups'))
 
-    # Check if admin and only admin
     if membership.role == 'admin':
         admin_count = GroupMember.query.filter_by(
             group_id=group_id,

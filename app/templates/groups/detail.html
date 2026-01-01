@@ -15,10 +15,10 @@
                     {{ group.created_at.strftime('%d %b %Y') }}
                 </small>
             </div>
-            <div>
+            <div class="text-end">
                 {% if is_admin %}
                 <a href="{{ url_for('groups.add_member', group_id=group.id) }}"
-                   class="btn btn-success">
+                   class="btn btn-success mb-2">
                     <i class="bi bi-person-plus"></i> Add Member
                 </a>
                 {% endif %}
@@ -26,6 +26,39 @@
         </div>
     </div>
 </div>
+
+<!-- ✅ NEW: Wallet Summary Card -->
+{% if wallet %}
+<div class="card mb-4 bg-light">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-3 text-center border-end">
+                <i class="bi bi-wallet2 text-primary" style="font-size: 2rem;"></i>
+                <h5 class="mt-2 mb-0">Wallet Balance</h5>
+                <h3 class="text-primary">₹{{ "%.2f"|format(wallet.balance) }}</h3>
+            </div>
+            <div class="col-md-3 text-center border-end">
+                <small class="text-muted">Contributed</small>
+                <h5 class="text-success mb-0">₹{{ "%.2f"|format(wallet.total_contributed) }}</h5>
+            </div>
+            <div class="col-md-3 text-center border-end">
+                <small class="text-muted">Disbursed</small>
+                <h5 class="text-danger mb-0">₹{{ "%.2f"|format(wallet.total_disbursed) }}</h5>
+            </div>
+            <div class="col-md-3 text-center">
+                <a href="{{ url_for('wallet.view_wallet', group_id=group.id) }}"
+                   class="btn btn-primary">
+                    <i class="bi bi-wallet"></i> View Wallet
+                </a>
+                <a href="{{ url_for('wallet.contribute', group_id=group.id) }}"
+                   class="btn btn-success">
+                    <i class="bi bi-plus"></i> Contribute
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <div class="row">
     <!-- Members List -->
@@ -63,7 +96,7 @@
         </div>
     </div>
 
-    <!-- Loan Requests - UPDATED! -->
+    <!-- Loan Requests -->
     <div class="col-md-6 mb-4">
         <div class="card h-100">
             <div class="card-header bg-warning text-dark d-flex justify-content-between">
@@ -95,11 +128,6 @@
                         </li>
                         {% endfor %}
                     </ul>
-                    {% if pending_loans|length > 3 %}
-                        <p class="text-muted text-center mt-2">
-                            +{{ pending_loans|length - 3 }} more...
-                        </p>
-                    {% endif %}
                 {% else %}
                     <p class="text-muted text-center py-3">
                         No pending loan requests.

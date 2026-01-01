@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}Repay Loan - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-cash"></i> Repay Your Loan
+                </h5>
+            </div>
+            <div class="card-body p-4">
+
+                <!-- Loan Summary -->
+                <div class="alert alert-light border mb-4">
+                    <h6 class="alert-heading">Loan Details</h6>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <p class="mb-1"><strong>Loan Amount:</strong></p>
+                            <p class="fs-5">₹{{ "%.2f"|format(loan.approved_amount) }}</p>
+                        </div>
+                        <div class="col-6">
+                            <p class="mb-1"><strong>Total Repaid:</strong></p>
+                            <p class="fs-5 text-success">₹{{ "%.2f"|format(loan.total_repaid) }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="text-center">
+                        <p class="mb-1"><strong>Remaining Amount:</strong></p>
+                        <p class="fs-3 text-danger mb-0">₹{{ "%.2f"|format(remaining_amount) }}</p>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    {% set progress = (loan.total_repaid / loan.approved_amount * 100) if loan.approved_amount else 0 %}
+                    <div class="progress mt-3" style="height: 25px;">
+                        <div class="progress-bar bg-success" style="width: {{ progress }}%">
+                            {{ "%.0f"|format(progress) }}% Repaid
+                        </div>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('wallet.repay', loan_id=loan.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Repayment Amount (₹) *</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" name="amount" class="form-control"
+                                   placeholder="Enter amount" min="1"
+                                   max="{{ remaining_amount }}" step="0.01" required>
+                        </div>
+                        <small class="text-muted">
+                            Maximum: ₹{{ "%.2f"|format(remaining_amount) }}
+                        </small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Description (Optional)</label>
+                        <input type="text" name="description" class="form-control"
+                               placeholder="e.g., Monthly installment">
+                    </div>
+
+                    <!-- Quick Amount Buttons -->
+                    <div class="mb-4">
+                        <label class="form-label">Quick Select:</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            {% set half = remaining_amount / 2 %}
+                            {% set quarter = remaining_amount / 4 %}
+                            <button type="button" class="btn btn-outline-warning quick-amount"
+                                    data-amount="{{ "%.2f"|format(quarter) }}">
+                                25% (₹{{ "%.0f"|format(quarter) }})
+                            </button>
+                            <button type="button" class="btn btn-outline-warning quick-amount"
+                                    data-amount="{{ "%.2f"|format(half) }}">
+                                50% (₹{{ "%.0f"|format(half) }})
+                            </button>
+                            <button type="button" class="btn btn-outline-success quick-amount"
+                                    data-amount="{{ "%.2f"|format(remaining_amount) }}">
+                                Full (₹{{ "%.0f"|format(remaining_amount) }})
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="bi bi-check-lg"></i> Make Payment
+                        </button>
+                        <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                           class="btn btn-outline-secondary btn-lg">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.quick-amount').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelector('input[name="amount"]').value = this.dataset.amount;
+    });
+});
+</script>
+{% endblock %}

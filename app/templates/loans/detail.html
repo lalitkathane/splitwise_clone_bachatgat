@@ -166,6 +166,99 @@
     </div>
 </div>
 
+<!-- Financial Status (Only for approved loans) -->
+{% if loan.status == 'approved' %}
+<div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white">
+        <i class="bi bi-bank"></i> Financial Status
+    </div>
+    <div class="card-body">
+        {% if not loan.disbursed_at %}
+            <!-- Not yet disbursed -->
+            <div class="text-center py-3">
+                <i class="bi bi-hourglass-split text-warning" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">Awaiting Disbursement</h5>
+                <p class="text-muted">
+                    Approved amount: <strong>₹{{ "%.2f"|format(loan.approved_amount or loan.amount) }}</strong>
+                </p>
+
+                {% set is_admin = group.is_admin(current_user) %}
+                {% if is_admin %}
+                    {% if group.wallet and group.wallet.balance >= (loan.approved_amount or loan.amount) %}
+                    <form action="{{ url_for('wallet.disburse', loan_id=loan.id) }}" method="POST">
+                        <button type="submit" class="btn btn-success btn-lg"
+                                onclick="return confirm('Disburse ₹{{ loan.approved_amount or loan.amount }} from wallet?')">
+                            <i class="bi bi-check-lg"></i> Disburse Loan
+                        </button>
+                    </form>
+                    <small class="text-muted mt-2 d-block">
+                        Wallet balance: ₹{{ "%.2f"|format(group.wallet.balance) }}
+                    </small>
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Insufficient wallet balance!<br>
+                        Required: ₹{{ "%.2f"|format(loan.approved_amount or loan.amount) }}<br>
+                        Available: ₹{{ "%.2f"|format(group.wallet.balance if group.wallet else 0) }}
+                    </div>
+                    {% endif %}
+                {% else %}
+                <p class="text-muted">Waiting for admin to disburse the loan.</p>
+                {% endif %}
+            </div>
+
+        {% elif not loan.is_fully_repaid %}
+            <!-- Disbursed but not fully repaid -->
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <h6 class="text-muted">Loan Amount</h6>
+                    <h4>₹{{ "%.2f"|format(loan.approved_amount) }}</h4>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted">Repaid</h6>
+                    <h4 class="text-success">₹{{ "%.2f"|format(loan.total_repaid) }}</h4>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted">Remaining</h6>
+                    <h4 class="text-danger">₹{{ "%.2f"|format(loan.get_remaining_amount()) }}</h4>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            {% set repay_progress = (loan.total_repaid / loan.approved_amount * 100) if loan.approved_amount else 0 %}
+            <div class="progress mt-3" style="height: 30px;">
+                <div class="progress-bar bg-success" style="width: {{ repay_progress }}%">
+                    {{ "%.0f"|format(repay_progress) }}% Repaid
+                </div>
+            </div>
+
+            {% if loan.requester.id == current_user.id %}
+            <div class="text-center mt-4">
+                <a href="{{ url_for('wallet.repay', loan_id=loan.id) }}" class="btn btn-warning btn-lg">
+                    <i class="bi bi-cash"></i> Make Repayment
+                </a>
+            </div>
+            {% endif %}
+
+            <p class="text-muted text-center mt-3">
+                <i class="bi bi-calendar"></i>
+                Disbursed on {{ loan.disbursed_at.strftime('%d %b %Y') }}
+            </p>
+
+        {% else %}
+            <!-- Fully Repaid -->
+            <div class="text-center py-3">
+                <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+                <h4 class="mt-3 text-success">Loan Fully Repaid! 🎉</h4>
+                <p class="text-muted">
+                    Total amount: ₹{{ "%.2f"|format(loan.approved_amount) }}
+                </p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- All Votes -->
 <div class="card mb-4">
     <div class="card-header bg-light">
@@ -220,5 +313,8 @@
 <!-- Back Button -->
 <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">
     <i class="bi bi-arrow-left"></i> Back to Group
+</a>
+<a href="{{ url_for('loans.list_loans', group_id=group.id) }}" class="btn btn-outline-primary">
+    <i class="bi bi-list"></i> All Loans
 </a>
 {% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Group - Bachat Gat{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> Create New Group
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('groups.create_group') }}">
+                    <div class="mb-3">
+                        <label class="form-label">Group Name *</label>
+                        <input type="text" name="name" class="form-control"
+                               placeholder="e.g., Family Savings Group" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="3"
+                                  placeholder="What is this group for?"></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Create Group
+                        </button>
+                        <a href="{{ url_for('groups.list_groups') }}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

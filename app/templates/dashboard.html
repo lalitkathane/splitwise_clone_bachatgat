@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Bachat Gat{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+        <p class="text-muted">Welcome, {{ current_user.name }}! 👋</p>
+        <hr>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <a href="{{ url_for('groups.list_groups') }}" class="btn btn-primary btn-lg w-100">
+            <i class="bi bi-people"></i> My Groups
+        </a>
+    </div>
+    <div class="col-md-6">
+        <a href="{{ url_for('groups.create_group') }}" class="btn btn-success btn-lg w-100">
+            <i class="bi bi-plus-lg"></i> Create New Group
+        </a>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row">
+    <div class="col-md-3 mb-3">
+        <div class="card text-center p-3 bg-light">
+            <h3 class="text-primary">{{ current_user.memberships.count() }}</h3>
+            <small class="text-muted">Groups Joined</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center p-3 bg-light">
+            <h3 class="text-success">0</h3>
+            <small class="text-muted">Loans Approved</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center p-3 bg-light">
+            <h3 class="text-warning">0</h3>
+            <small class="text-muted">Pending Votes</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center p-3 bg-light">
+            <h3 class="text-info">₹0</h3>
+            <small class="text-muted">Total Requested</small>
+        </div>
+    </div>
+</div>
+{% endblock %}

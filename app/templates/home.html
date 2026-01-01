@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Welcome - Bachat Gat{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 text-center">
+        <h1 class="display-4 mb-4">
+            <i class="bi bi-piggy-bank text-primary"></i>
+        </h1>
+        <h1 class="display-5">Welcome to Bachat Gat</h1>
+        <p class="lead text-muted">
+            A simple group savings and loan approval system.
+            Create groups, request loans, and get approvals from your trusted circle.
+        </p>
+
+        <div class="mt-4">
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg me-2">
+                <i class="bi bi-person-plus"></i> Get Started
+            </a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary btn-lg">
+                <i class="bi bi-box-arrow-in-right"></i> Login
+            </a>
+        </div>
+
+        <!-- Features -->
+        <div class="row mt-5">
+            <div class="col-md-4">
+                <div class="card p-4">
+                    <i class="bi bi-people text-primary" style="font-size: 2rem;"></i>
+                    <h5 class="mt-3">Create Groups</h5>
+                    <p class="text-muted">Form trusted savings groups with friends & family</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-4">
+                    <i class="bi bi-cash-coin text-success" style="font-size: 2rem;"></i>
+                    <h5 class="mt-3">Request Loans</h5>
+                    <p class="text-muted">Submit loan requests to your group members</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-4">
+                    <i class="bi bi-check-circle text-info" style="font-size: 2rem;"></i>
+                    <h5 class="mt-3">Vote & Approve</h5>
+                    <p class="text-muted">Democratic approval through member voting</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

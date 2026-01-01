@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+
+{% block title %}Loan Request - ₹{{ loan.amount }}{% endblock %}
+
+{% block content %}
+<!-- Loan Header -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <h2>
+                    <i class="bi bi-cash-coin text-warning"></i>
+                    Loan Request: ₹{{ "%.2f"|format(loan.amount) }}
+                </h2>
+                <p class="text-muted mb-2">
+                    Requested by <strong>{{ loan.requester.name }}</strong>
+                    {% if loan.requester.id == current_user.id %}
+                        <span class="badge bg-info">You</span>
+                    {% endif %}
+                </p>
+                <p class="mb-2">
+                    <strong>Reason:</strong> {{ loan.reason }}
+                </p>
+                <small class="text-muted">
+                    <i class="bi bi-calendar"></i>
+                    {{ loan.created_at.strftime('%d %b %Y, %I:%M %p') }}
+                    • From group: <a href="{{ url_for('groups.view_group', group_id=group.id) }}">{{ group.name }}</a>
+                </small>
+            </div>
+            <div class="col-md-4 text-end">
+                <!-- Status Badge -->
+                {% if loan.status == 'pending' %}
+                    <span class="badge bg-warning text-dark fs-5">
+                        <i class="bi bi-clock"></i> Pending
+                    </span>
+                {% elif loan.status == 'approved' %}
+                    <span class="badge bg-success fs-5">
+                        <i class="bi bi-check-circle"></i> Approved
+                    </span>
+                {% else %}
+                    <span class="badge bg-danger fs-5">
+                        <i class="bi bi-x-circle"></i> Rejected
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Voting Progress -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-bar-chart"></i> Voting Progress
+            </div>
+            <div class="card-body">
+                <!-- Progress Bar -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Votes Cast</span>
+                        <span>{{ votes_cast }} / {{ eligible_voters }}</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        {% set progress = (votes_cast / eligible_voters * 100) if eligible_voters > 0 else 0 %}
+                        <div class="progress-bar bg-info" style="width: {{ progress }}%">
+                            {{ "%.0f"|format(progress) }}%
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="row text-center mt-4">
+                    <div class="col-4">
+                        <h3 class="text-success">{{ loan.get_approval_count() }}</h3>
+                        <small class="text-muted">Approved</small>
+                    </div>
+                    <div class="col-4">
+                        <h3 class="text-danger">{{ loan.get_rejection_count() }}</h3>
+                        <small class="text-muted">Rejected</small>
+                    </div>
+                    <div class="col-4">
+                        <h3 class="text-warning">{{ eligible_voters - votes_cast }}</h3>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                </div>
+
+                <hr>
+
+                <p class="text-center text-muted mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Need <strong>{{ votes_needed }}</strong> approvals for loan to be approved
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vote / Your Vote -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-hand-thumbs-up"></i>
+                {% if can_vote %}Cast Your Vote{% else %}Your Vote{% endif %}
+            </div>
+            <div class="card-body">
+                {% if loan.requester.id == current_user.id %}
+                    <!-- This is user's own loan -->
+                    <div class="text-center py-4">
+                        <i class="bi bi-hourglass-split text-warning" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">This is your loan request</h5>
+                        <p class="text-muted">Waiting for other members to vote...</p>
+                    </div>
+
+                {% elif user_vote %}
+                    <!-- Already voted -->
+                    <div class="text-center py-4">
+                        {% if user_vote.approved %}
+                            <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3 text-success">You Approved</h5>
+                        {% else %}
+                            <i class="bi bi-x-circle text-danger" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3 text-danger">You Rejected</h5>
+                        {% endif %}
+                        {% if user_vote.comment %}
+                            <p class="text-muted">"{{ user_vote.comment }}"</p>
+                        {% endif %}
+                        <small class="text-muted">
+                            Voted on {{ user_vote.voted_at.strftime('%d %b %Y') }}
+                        </small>
+                    </div>
+
+                {% elif loan.status != 'pending' %}
+                    <!-- Loan already decided -->
+                    <div class="text-center py-4">
+                        <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">Voting Closed</h5>
+                        <p class="text-muted">This loan has been {{ loan.status }}.</p>
+                    </div>
+
+                {% else %}
+                    <!-- Can vote -->
+                    <form method="POST" action="{{ url_for('loans.vote_loan', loan_id=loan.id) }}">
+                        <div class="mb-3">
+                            <label class="form-label">Your Decision</label>
+                            <div class="d-grid gap-2">
+                                <button type="submit" name="vote" value="approve"
+                                        class="btn btn-success btn-lg">
+                                    <i class="bi bi-check-lg"></i> Approve Loan
+                                </button>
+                                <button type="submit" name="vote" value="reject"
+                                        class="btn btn-danger btn-lg">
+                                    <i class="bi bi-x-lg"></i> Reject Loan
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Comment (Optional)</label>
+                            <input type="text" name="comment" class="form-control"
+                                   placeholder="Add a comment...">
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- All Votes -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <i class="bi bi-list-check"></i> All Votes ({{ approvals|length }})
+    </div>
+    <div class="card-body">
+        {% if approvals %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Vote</th>
+                            <th>Comment</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for vote in approvals %}
+                        <tr>
+                            <td>
+                                <i class="bi bi-person-circle"></i>
+                                {{ vote.approver.name }}
+                                {% if vote.approver.id == current_user.id %}
+                                    <span class="badge bg-info">You</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if vote.approved %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check"></i> Approved
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-x"></i> Rejected
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ vote.comment or '-' }}</td>
+                            <td>{{ vote.voted_at.strftime('%d %b %Y') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted text-center py-3">No votes yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Back Button -->
+<a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to Group
+</a>
+{% endblock %}

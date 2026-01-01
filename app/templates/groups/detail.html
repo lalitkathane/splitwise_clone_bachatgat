@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ group.name }} - Bachat Gat{% endblock %}
+
+{% block content %}
+<!-- Group Header -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h2><i class="bi bi-people-fill text-primary"></i> {{ group.name }}</h2>
+                <p class="text-muted mb-2">{{ group.description or 'No description' }}</p>
+                <small class="text-muted">
+                    Created by {{ group.creator.name }} •
+                    {{ group.created_at.strftime('%d %b %Y') }}
+                </small>
+            </div>
+            <div>
+                {% if is_admin %}
+                <a href="{{ url_for('groups.add_member', group_id=group.id) }}"
+                   class="btn btn-success">
+                    <i class="bi bi-person-plus"></i> Add Member
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Members List -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-people"></i> Members ({{ members|length }})
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for membership in members %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-person-circle"></i>
+                        {{ membership.user.name }}
+                        {% if membership.role == 'admin' %}
+                            <span class="badge bg-warning text-dark">Admin</span>
+                        {% endif %}
+                        {% if membership.user.id == current_user.id %}
+                            <span class="badge bg-info">You</span>
+                        {% endif %}
+                    </div>
+
+                    {% if is_admin and membership.user.id != current_user.id %}
+                    <form action="{{ url_for('groups.remove_member', group_id=group.id, user_id=membership.user.id) }}"
+                          method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Remove this member?')">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Loan Requests - UPDATED! -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between">
+                <span><i class="bi bi-cash-coin"></i> Loan Requests</span>
+                <a href="{{ url_for('loans.list_loans', group_id=group.id) }}"
+                   class="text-dark">View All →</a>
+            </div>
+            <div class="card-body">
+                {% set pending_loans = group.loan_requests.filter_by(status='pending').all() %}
+
+                {% if pending_loans %}
+                    <ul class="list-group list-group-flush">
+                        {% for loan in pending_loans[:3] %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>₹{{ "%.0f"|format(loan.amount) }}</strong>
+                                    by {{ loan.requester.name }}
+                                </div>
+                                <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                                   class="btn btn-sm btn-outline-warning">
+                                    {% if loan.requester.id != current_user.id %}
+                                        Vote
+                                    {% else %}
+                                        View
+                                    {% endif %}
+                                </a>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% if pending_loans|length > 3 %}
+                        <p class="text-muted text-center mt-2">
+                            +{{ pending_loans|length - 3 }} more...
+                        </p>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted text-center py-3">
+                        No pending loan requests.
+                    </p>
+                {% endif %}
+
+                <a href="{{ url_for('loans.create_loan', group_id=group.id) }}"
+                   class="btn btn-warning w-100 mt-2">
+                    <i class="bi bi-plus-lg"></i> Request Loan
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Back & Leave Buttons -->
+<div class="mt-4">
+    <a href="{{ url_for('groups.list_groups') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Groups
+    </a>
+
+    <form action="{{ url_for('groups.leave_group', group_id=group.id) }}"
+          method="POST" style="display: inline;">
+        <button type="submit" class="btn btn-outline-danger"
+                onclick="return confirm('Are you sure you want to leave this group?')">
+            <i class="bi bi-box-arrow-left"></i> Leave Group
+        </button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}EMI Schedule - Loan #{{ loan.id }} {% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10 col-xxl-9">
+        <!-- Page Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+            <div>
+                <h2 class="mb-1">
+                    <i class="bi bi-calendar-check text-info me-2"></i>
+                    Full EMI Schedule
+                </h2>
+                <p class="text-muted mb-0">
+                    Loan #{{ loan.id }}</strong>
+                    - Group: <a href="{{ url_for('groups.view_group', group_id=loan.group_id) }}"
+                                class="text-decoration-none">{{ loan.group.name }}</a>
+                </p>
+            </div>
+            <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+               class="btn btn-outline-secondary d-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back to Loan Details
+            </a>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body py-4">
+                        <small class="text-muted">Total Repayable</small>
+                        <h4 class="text-primary mb-0 mt-2">₹{{ "%.2f"|format(loan.total_repayable or 0) }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body py-4">
+                        <small class="text-muted">Total Interest</small>
+                        <h4 class="text-warning mb-0 mt-2">₹{{ "%.2f"|format(loan.total_interest or 0) }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body py-4">
+                        <small class="text-muted">Monthly EMI</small>
+                        <h4 class="text-success mb-0 mt-2">₹{{ "%.2f"|format(loan.emi_amount or 0) }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body py-4">
+                        <small class="text-muted">Duration</small>
+                        <h4 class="text-info mb-0 mt-2">{{ loan.loan_duration_months }} months</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EMI Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-table me-2"></i>
+                    Detailed EMI Breakdown ({{ emi_schedule|length }} installments)
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0 align-middle">
+                        <thead class="table-light text-center text-muted small">
+                            <tr>
+                                <th>#</th>
+                                <th>Due Date</th>
+                                <th>Opening Balance</th>
+                                <th>EMI Amount</th>
+                                <th>Principal</th>
+                                <th>Interest</th>
+                                <th>Closing Balance</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emi in emi_schedule %}
+                            <tr class="{% if emi.is_paid %}table-success{% else %}table-light{% endif %}">
+                                <td class="text-center fw-bold">{{ emi.installment_number }}</td>
+                                <td class="text-center">{{ emi.due_date.strftime('%d %b %Y') }}</td>
+                                <td class="text-center">₹{{ "%.2f"|format(emi.opening_balance) }}</td>
+                                <td class="text-center">₹{{ "%.2f"|format(emi.emi_amount) }}</td>
+                                <td class="text-center">₹{{ "%.2f"|format(emi.principal_component) }}</td>
+                                <td class="text-center">₹{{ "%.2f"|format(emi.interest_component) }}</td>
+                                <td class="text-center">₹{{ "%.2f"|format(emi.closing_balance) }}</td>
+                                <td class="text-center">
+                                    {% if emi.is_paid %}
+                                        <span class="badge bg-success px-4 py-2">Paid</span>
+                                        {% if emi.paid_at %}
+                                        <br><small class="text-muted">{{ emi.paid_at.strftime('%d %b %Y') }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark px-4 py-2">Due</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-dark">
+                            <tr class="text-end fw-bold">
+                                <td colspan="3" class="text-start">TOTALS</td>
+                                <td class="text-center">₹{{ "%.2f"|format(total_emi_sum) }}</td>
+                                <td class="text-center text-primary">₹{{ "%.2f"|format(total_principal_sum) }}</td>
+                                <td class="text-center text-warning">₹{{ "%.2f"|format(total_interest_sum) }}</td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light text-center py-3">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Generated on loan approval • Interest calculation:
+                    <strong>{% if loan.group.use_flat_rate %}Flat Rate{% else %}Reducing Balance{% endif %}</strong>
+                </small>
+            </div>
+        </div>
+
+        <!-- Back Button -->
+        <div class="mt-5 text-center">
+            <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+               class="btn btn-outline-primary px-5 py-3">
+                <i class="bi bi-arrow-left me-2"></i> Back to Loan Details
+            </a>
+        </div>
+    </div>
+</div>
+
+<!--<div class="text-muted mb-3">
+    <strong>{{ paid_installments }} of {{ total_installments }}</strong> installments paid
+    • Total paid: <strong>₹{{ "%.2f"|format(total_paid_amount) }}</strong>
+</div>-->
+
+
+{% endblock %}

@@ -4,20 +4,24 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-md-7">
+        <div class="card shadow-sm">
             <div class="card-header bg-warning text-dark">
                 <h5 class="mb-0">
                     <i class="bi bi-cash-coin"></i> Request Loan from "{{ group.name }}"
                 </h5>
             </div>
             <div class="card-body p-4">
-
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    <strong>How it works:</strong> Your loan request will be sent to
-                    {{ group.get_active_member_count() - 1 }} group members for approval.
-                    Majority approval is required.
+                <!-- Wallet Balance Alert -->
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-wallet2 me-2"></i>
+                    <strong>Current Group Wallet Balance:</strong>
+                    ₹{{ "%.2f"|format(group.wallet.balance if group.wallet else 0) }}
+                    <br>
+                    <small class="text-muted">
+                        You can only request up to this amount.
+                        More contributions needed for larger loans.
+                    </small>
                 </div>
 
                 <form method="POST" action="{{ url_for('loans.create_loan', group_id=group.id) }}">
@@ -25,33 +29,49 @@
                         <label class="form-label">Loan Amount (₹) *</label>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
-                            <input type="number" name="amount" class="form-control"
-                                   placeholder="Enter amount" min="1" step="0.01" required>
+                            <input type="number"
+                                   name="amount"
+                                   class="form-control"
+                                   placeholder="Enter amount"
+                                   min="1"
+                                   step="0.01"
+                                   max="{{ group.wallet.balance if group.wallet else 0 }}"
+                                   required>
                         </div>
+                        <small class="text-muted">
+                            Maximum allowed: ₹{{ "%.2f"|format(group.wallet.balance if group.wallet else 0) }}
+                        </small>
                     </div>
 
                     <div class="mb-4">
                         <label class="form-label">Reason for Loan *</label>
-                        <textarea name="reason" class="form-control" rows="4"
-                                  placeholder="Explain why you need this loan..." required></textarea>
-                        <small class="text-muted">Be specific - this helps members decide.</small>
+                        <textarea name="reason"
+                                  class="form-control"
+                                  rows="4"
+                                  placeholder="Be specific — this helps members approve faster..."
+                                  required></textarea>
                     </div>
 
-                    <div class="alert alert-light">
+                    <div class="alert alert-light border">
                         <small>
-                            <strong>Loan Terms:</strong>
-                            Interest: {{ group.default_interest_rate }}% p.a. |
-                            Duration: {{ group.default_loan_duration_months }} months |
+                            <strong>Loan Terms:</strong><br>
+                            Interest: {{ group.default_interest_rate }}% p.a. •
+                            Duration: {{ group.default_loan_duration_months }} months •
                             Type: {{ 'EMI' if group.default_repayment_type == 'emi' else 'Bullet' }}
+                            {% if group.use_flat_rate %}
+                            • <strong class="text-warning">Flat Rate Interest</strong>
+                            {% else %}
+                            • Reducing Balance
+                            {% endif %}
                         </small>
                     </div>
 
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-send"></i> Submit Request
+                    <div class="d-flex gap-3 mt-4">
+                        <button type="submit" class="btn btn-warning btn-lg px-5">
+                            <i class="bi bi-send me-2"></i> Submit Request
                         </button>
                         <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-                           class="btn btn-outline-secondary">
+                           class="btn btn-outline-secondary btn-lg">
                             Cancel
                         </a>
                     </div>

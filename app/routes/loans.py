@@ -5,6 +5,7 @@ LOAN ROUTES
 Uses loan_service for all operations.
 Implements strict state machine.
 """
+from datetime import datetime
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
@@ -70,28 +71,28 @@ def view_loan(loan_id):
         flash('You are not a member of this group!', 'danger')
         return redirect(url_for('groups.list_groups'))
 
-    # Get comprehensive loan details
     details = get_loan_details(loan_id)
 
-    # Check if current user can vote
     can_vote_result, vote_reason = can_vote(current_user.id, loan_id)
 
-    # Get user's vote if exists
     user_vote = LoanApproval.query.filter_by(
         loan_id=loan_id,
         user_id=current_user.id
     ).first()
 
-    # Get all votes
     all_votes = LoanApproval.query.filter_by(loan_id=loan_id).all()
 
-    # Check if user can repay
     can_repay_result, _ = can_repay(current_user.id, loan_id)
 
-    # Check if admin
     is_admin = is_group_admin(current_user.id, loan.group_id)
 
-    # Get pending repayments for this loan (for admin)
+    # NEW: Can this admin perform final approval?
+    can_final_approve = (
+        is_admin and
+        loan.status == LoanStatus.PRE_APPROVED.value and
+        loan.requested_by != current_user.id
+    )
+
     pending_repayments = []
     if is_admin:
         pending_repayments = LoanRepayment.query.filter_by(
@@ -110,8 +111,36 @@ def view_loan(loan_id):
         all_votes=all_votes,
         can_repay=can_repay_result,
         is_admin=is_admin,
+        can_final_approve=can_final_approve,  # ← NEW
         pending_repayments=pending_repayments
     )
+
+
+# ============== FINAL ADMIN APPROVAL ==============
+@loans_bp.route('/loans/<int:loan_id>/final-approve', methods=['POST'])
+@login_required
+def final_approve_loan(loan_id):
+    loan = LoanRequest.query.get_or_404(loan_id)
+
+    if not is_group_admin(current_user.id, loan.group_id):
+        flash('Only group admin can perform final approval!', 'danger')
+        return redirect(url_for('loans.view_loan', loan_id=loan_id))
+
+    if loan.status != LoanStatus.PRE_APPROVED.value:
+        flash('This loan is not in pre-approved state.', 'danger')
+        return redirect(url_for('loans.view_loan', loan_id=loan_id))
+
+    if loan.requested_by == current_user.id:
+        flash('You cannot final-approve your own loan request.', 'danger')
+        return redirect(url_for('loans.view_loan', loan_id=loan_id))
+
+    loan.status = LoanStatus.APPROVED.value
+    loan.approved_at = datetime.utcnow()
+    db.session.commit()
+
+    flash('Loan has been finally approved!', 'success')
+    return redirect(url_for('loans.view_loan', loan_id=loan_id))
+
 
 
 # ============== LIST LOANS IN GROUP ==============
@@ -294,7 +323,6 @@ def repay_loan(loan_id):
         next_emi=next_emi
     )
 
-
 # ============== VIEW EMI SCHEDULE ==============
 @loans_bp.route('/loans/<int:loan_id>/emi-schedule')
 @login_required
@@ -305,20 +333,35 @@ def view_emi_schedule(loan_id):
         flash('You are not a member of this group!', 'danger')
         return redirect(url_for('groups.list_groups'))
 
+    # Fetch all EMI records ordered by installment
     emi_schedule = EMISchedule.query.filter_by(loan_id=loan_id).order_by(
         EMISchedule.installment_number
     ).all()
 
-    # Calculate summary
-    total_paid = sum(e.paid_amount or 0 for e in emi_schedule if e.is_paid)
-    total_pending = sum(e.emi_amount for e in emi_schedule if not e.is_paid)
+    if not emi_schedule:
+        flash('No EMI schedule found for this loan.', 'info')
+        return redirect(url_for('loans.view_loan', loan_id=loan_id))
+
+    # Calculate accurate totals from EMI records
+    total_emi_sum = sum(e.emi_amount for e in emi_schedule)
+    total_principal_sum = sum(e.principal_component for e in emi_schedule)
+    total_interest_sum = sum(e.interest_component for e in emi_schedule)
+
+    # Additional stats
+    paid_installments = sum(1 for e in emi_schedule if e.is_paid)
+    total_installments = len(emi_schedule)
+    total_paid_amount = sum(e.paid_amount or e.emi_amount for e in emi_schedule if e.is_paid)
 
     return render_template(
         'loans/emi_schedule.html',
         loan=loan,
         emi_schedule=emi_schedule,
-        total_paid=total_paid,
-        total_pending=total_pending
+        total_emi_sum=total_emi_sum,
+        total_principal_sum=total_principal_sum,
+        total_interest_sum=total_interest_sum,
+        paid_installments=paid_installments,
+        total_installments=total_installments,
+        total_paid_amount=total_paid_amount
     )
 
 

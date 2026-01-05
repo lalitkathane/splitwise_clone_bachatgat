@@ -67,6 +67,23 @@
                         </div>
                     </div>
 
+                    <!-- NEW: Flat Rate Option -->
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="use_flat_rate" id="use_flat_rate"
+                                   {% if group.use_flat_rate %}checked{% endif %}>
+                            <label class="form-check-label" for="use_flat_rate">
+                                <strong>Use Flat Rate Interest Calculation</strong>
+                            </label>
+                            <div class="form-text text-muted">
+                                <small>
+                                    <strong>Default (unchecked):</strong> Reducing balance — interest decreases as principal is repaid (recommended).<br>
+                                    <strong>Checked:</strong> Flat rate — interest on full principal throughout.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-lg"></i> Save Settings

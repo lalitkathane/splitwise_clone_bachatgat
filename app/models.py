@@ -11,7 +11,7 @@ CRITICAL DESIGN PRINCIPLES:
 6. Idempotency keys prevent duplicate transactions
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -27,21 +27,20 @@ import uuid
 class LoanStatus(Enum):
     """
     Loan State Machine:
-    PENDING → APPROVED → DISBURSED → COMPLETED
+    PENDING → PRE_APPROVED → APPROVED → DISBURSED → COMPLETED
             ↘ REJECTED
     """
     PENDING = 'pending'
+    PRE_APPROVED = 'pre_approved'
     APPROVED = 'approved'
     REJECTED = 'rejected'
     DISBURSED = 'disbursed'
     COMPLETED = 'completed'
 
-
 class RepaymentType(Enum):
     """Loan repayment structure"""
-    EMI = 'emi'  # Equal Monthly Installments
-    BULLET = 'bullet'  # Lump sum at end
-
+    EMI = 'emi'
+    BULLET = 'bullet'
 
 class TransactionType(Enum):
     """Types of wallet transactions"""
@@ -51,13 +50,11 @@ class TransactionType(Enum):
     INTEREST_DISTRIBUTION = 'interest_distribution'
     REFUND = 'refund'
 
-
 class RepaymentStatus(Enum):
     """Repayment approval states"""
     PENDING = 'pending'
     APPROVED = 'approved'
     REJECTED = 'rejected'
-
 
 class MemberRole(Enum):
     """Group member roles"""
@@ -69,9 +66,7 @@ class MemberRole(Enum):
 # USER MODEL
 # ============================================================
 class User(UserMixin, db.Model):
-    """
-    Core user entity.
-    """
+    """Core user entity."""
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -109,7 +104,7 @@ class User(UserMixin, db.Model):
 
 
 # ============================================================
-# GROUP MODEL
+# GROUP MODEL (UPDATED WITH NEW FIELDS)
 # ============================================================
 class Group(db.Model):
     """
@@ -126,7 +121,8 @@ class Group(db.Model):
     # Interest configuration (set by admin)
     default_interest_rate = db.Column(db.Float, default=12.0)  # Annual %
     default_loan_duration_months = db.Column(db.Integer, default=12)
-    default_repayment_type = db.Column(db.String(20), default='emi')
+    default_repayment_type = db.Column(db.String(20), default=RepaymentType.EMI.value)
+    use_flat_rate = db.Column(db.Boolean, default=False, nullable=False)  # NEW: Flat rate option
 
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -155,18 +151,22 @@ class Group(db.Model):
     def is_admin(self, user):
         """Check if user is an active admin"""
         membership = self.members.filter_by(user_id=user.id, is_active=True).first()
-        return membership and membership.role == 'admin'
+        return membership and membership.role == MemberRole.ADMIN.value
 
     def get_admins(self):
         """Get all active admins"""
-        return self.members.filter_by(role='admin', is_active=True).all()
+        return self.members.filter_by(role=MemberRole.ADMIN.value, is_active=True).all()
+
+    def get_admin(self):
+        """Get first active admin (for backward compatibility)"""
+        return self.members.filter_by(role=MemberRole.ADMIN.value, is_active=True).first()
 
     def __repr__(self):
         return f'<Group {self.id}: {self.name}>'
 
 
 # ============================================================
-# GROUP MEMBER MODEL (UPDATED)
+# GROUP MEMBER MODEL (FULL SOFT DELETE)
 # ============================================================
 class GroupMember(db.Model):
     """
@@ -208,7 +208,7 @@ class GroupMember(db.Model):
 
 
 # ============================================================
-# GROUP WALLET MODEL (UPDATED)
+# GROUP WALLET MODEL (CACHE MANAGEMENT)
 # ============================================================
 class GroupWallet(db.Model):
     """
@@ -258,7 +258,7 @@ class GroupWallet(db.Model):
 
 
 # ============================================================
-# MEMBER LEDGER MODEL (NEW!)
+# MEMBER LEDGER MODEL
 # ============================================================
 class MemberLedger(db.Model):
     """
@@ -300,7 +300,6 @@ class MemberLedger(db.Model):
 
     def __repr__(self):
         return f'<MemberLedger user={self.user_id} balance={self.total_balance}>'
-
 
 # ============================================================
 # MEMBER CONTRIBUTION MODEL

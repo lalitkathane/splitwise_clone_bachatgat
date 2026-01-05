@@ -40,6 +40,7 @@ def create_group():
         interest_rate = request.form.get('interest_rate', 12.0, type=float)
         loan_duration = request.form.get('loan_duration', 12, type=int)
         repayment_type = request.form.get('repayment_type', 'emi')
+        use_flat_rate = 'use_flat_rate' in request.form  # NEW: Checkbox
 
         if not name:
             flash('Group name is required!', 'danger')
@@ -53,7 +54,8 @@ def create_group():
                 created_by=current_user.id,
                 default_interest_rate=interest_rate,
                 default_loan_duration_months=loan_duration,
-                default_repayment_type=repayment_type
+                default_repayment_type=repayment_type,
+                use_flat_rate=use_flat_rate  # NEW
             )
             db.session.add(new_group)
             db.session.flush()
@@ -148,12 +150,13 @@ def group_settings(group_id):
     if request.method == 'POST':
         group.name = request.form.get('name', group.name)
         group.description = request.form.get('description', group.description)
-        group.default_interest_rate = request.form.get('interest_rate', 12.0, type=float)
-        group.default_loan_duration_months = request.form.get('loan_duration', 12, type=int)
-        group.default_repayment_type = request.form.get('repayment_type', 'emi')
+        group.default_interest_rate = request.form.get('interest_rate', group.default_interest_rate, type=float)
+        group.default_loan_duration_months = request.form.get('loan_duration', group.default_loan_duration_months, type=int)
+        group.default_repayment_type = request.form.get('repayment_type', group.default_repayment_type)
+        group.use_flat_rate = 'use_flat_rate' in request.form  # NEW: Update flat rate setting
 
         db.session.commit()
-        flash('Group settings updated!', 'success')
+        flash('Group settings updated successfully!', 'success')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
     return render_template('groups/settings.html', group=group)

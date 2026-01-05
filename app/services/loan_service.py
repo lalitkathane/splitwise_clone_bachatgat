@@ -31,11 +31,7 @@ class LoanError(Exception):
 def create_loan_request(group_id, user_id, amount, reason):
     """
     Create a new loan request.
-
-    At this point:
-    - No interest calculated yet
-    - No EMI schedule yet
-    - Just captures the request
+    NOW WITH WALLET BALANCE CHECK: Request denied if amount > current wallet balance
     """
     try:
         if not amount or amount <= 0:
@@ -44,6 +40,18 @@ def create_loan_request(group_id, user_id, amount, reason):
         group = Group.query.get(group_id)
         if not group:
             raise LoanError(f"Group {group_id} not found")
+
+        # Check if group has a wallet and sufficient balance
+        if not group.wallet:
+            raise LoanError("This group has no wallet. Cannot request loan.")
+
+        if amount > group.wallet.balance:
+            raise LoanError(
+                f"Insufficient group funds! "
+                f"Requested: ₹{amount:,.2f}, "
+                f"Available: ₹{group.wallet.balance:,.2f}. "
+                f"Reduce amount or wait for more contributions."
+            )
 
         # Check membership
         membership = GroupMember.query.filter_by(
@@ -74,7 +82,7 @@ def create_loan_request(group_id, user_id, amount, reason):
         if eligible_voters < 1:
             raise LoanError("Not enough members to process loan")
 
-        # Create loan request (interest NOT calculated yet)
+        # Create loan request
         loan = LoanRequest(
             group_id=group_id,
             requested_by=user_id,
@@ -99,14 +107,17 @@ def create_loan_request(group_id, user_id, amount, reason):
 
 
 # ============================================================
-# CAST VOTE
+# CAST VOTE – WITH DYNAMIC DEPARTURE HANDLING
 # ============================================================
 
 def cast_vote(loan_id, user_id, approved, comment=None):
     """
     Cast vote on loan request.
+    On majority approval:
+      - Normal: set to PRE_APPROVED
+      - If applicant is the ONLY admin: auto set to APPROVED
 
-    When majority approves → Interest is calculated!
+    Now includes dynamic adjustment if members leave mid-voting.
     """
     try:
         allowed, reason = can_vote(user_id, loan_id)
@@ -125,14 +136,57 @@ def cast_vote(loan_id, user_id, approved, comment=None):
         db.session.add(vote)
         db.session.flush()
 
-        # Check if we have majority
+        # Get current vote counts
         approval_count = loan.get_approval_count()
         rejection_count = loan.get_rejection_count()
+        votes_cast = approval_count + rejection_count
 
-        if approval_count >= loan.required_approvals:
-            # ⭐ APPROVED - Calculate interest now!
+        # === DYNAMIC ADJUSTMENT FOR MEMBER DEPARTURE ===
+        # Recalculate current active eligible voters (excluding applicant)
+        current_active_members = loan.group.get_active_member_count()
+
+        # Check if applicant is still active in group
+        applicant_membership = GroupMember.query.filter_by(
+            group_id=loan.group_id,
+            user_id=loan.requested_by,
+            is_active=True
+        ).first()
+
+        if not applicant_membership:
+            # Applicant left the group → reject loan
+            loan.status = LoanStatus.REJECTED.value
+            loan.rejected_at = datetime.utcnow()
+            db.session.commit()
+            return vote, loan.status
+
+        current_eligible_voters = current_active_members - 1  # exclude applicant
+
+        # Use the lower of original or current eligible voters
+        effective_eligible = min(loan.total_eligible_voters, current_eligible_voters)
+        effective_required = (effective_eligible // 2) + 1
+
+        # === CHECK FOR MAJORITY USING EFFECTIVE REQUIREMENT ===
+        if approval_count >= effective_required and votes_cast > 0:
+            # Majority approval achieved
             approve_loan_with_interest(loan)
-        elif rejection_count >= loan.required_approvals:
+
+            # Apply admin auto-approve logic (only if still only one admin)
+            admin_members = GroupMember.query.filter_by(
+                group_id=loan.group_id,
+                role=MemberRole.ADMIN.value,
+                is_active=True
+            ).all()
+
+            is_applicant_admin = any(m.user_id == loan.requested_by for m in admin_members)
+            only_one_admin = len(admin_members) == 1
+
+            if is_applicant_admin and only_one_admin:
+                loan.status = LoanStatus.APPROVED.value
+                loan.approved_at = datetime.utcnow()
+            else:
+                loan.status = LoanStatus.PRE_APPROVED.value
+
+        elif rejection_count >= effective_required:
             loan.status = LoanStatus.REJECTED.value
             loan.rejected_at = datetime.utcnow()
 
@@ -149,7 +203,7 @@ def cast_vote(loan_id, user_id, approved, comment=None):
 
 
 # ============================================================
-# APPROVE LOAN WITH INTEREST CALCULATION ⭐
+# APPROVE LOAN WITH INTEREST CALCULATION
 # ============================================================
 
 def approve_loan_with_interest(loan):
@@ -165,15 +219,15 @@ def approve_loan_with_interest(loan):
     group = loan.group
 
     # ===== STEP 1: Get loan terms from group defaults =====
-    loan.interest_rate = group.default_interest_rate  # e.g., 12%
-    loan.loan_duration_months = group.default_loan_duration_months  # e.g., 12
-    loan.repayment_type = group.default_repayment_type  # 'emi' or 'bullet'
+    loan.interest_rate = group.default_interest_rate
+    loan.loan_duration_months = group.default_loan_duration_months
+    loan.repayment_type = group.default_repayment_type
     loan.approved_amount = loan.amount
 
-    # ===== STEP 2: Calculate Interest & EMI (Reducing Balance by default) =====
+    # ===== STEP 2: Calculate Interest & EMI =====
     if loan.repayment_type == 'emi':
-        if group.use_flat_rate:  # Optional: use flat rate if group setting enabled
-            # Simple Interest Formula: I = P × R × T / 100
+        if getattr(group, 'use_flat_rate', False):  # Safe access in case field missing temporarily
+            # Flat rate calculation
             principal = loan.approved_amount
             rate = loan.interest_rate
             time_in_years = loan.loan_duration_months / 12
@@ -182,10 +236,10 @@ def approve_loan_with_interest(loan):
             loan.emi_amount = loan.total_repayable / loan.loan_duration_months
             generate_emi_schedule(loan)
         else:
-            # Use reducing balance method by default
+            # Reducing balance (default)
             generate_emi_schedule_reducing_balance(loan)
     else:
-        # Bullet payment - use simple interest
+        # Bullet repayment
         principal = loan.approved_amount
         rate = loan.interest_rate
         time_years = loan.loan_duration_months / 12
@@ -193,9 +247,8 @@ def approve_loan_with_interest(loan):
         loan.total_repayable = principal + loan.total_interest
         loan.emi_amount = None
 
-    # ===== STEP 3: Update status =====
-    loan.status = LoanStatus.APPROVED.value
-    loan.approved_at = datetime.utcnow()
+    # ===== STEP 3: Debug Print (Fixed) =====
+    emi_display = f"₹{loan.emi_amount:,.2f}" if loan.emi_amount else "N/A (Bullet)"
 
     print(f"""
     ✅ Loan #{loan.id} Approved!
@@ -206,10 +259,8 @@ def approve_loan_with_interest(loan):
     ─────────────────────────────
     Total Interest: ₹{loan.total_interest:,.2f}
     Total Repayable: ₹{loan.total_repayable:,.2f}
-    EMI Amount:     ₹{loan.emi_amount:,.2f} if loan.emi_amount else 'N/A (Bullet)'
+    EMI Amount:     {emi_display}
     """)
-
-
 # ============================================================
 # GENERATE EMI SCHEDULE (FLAT RATE)
 # ============================================================
@@ -272,7 +323,7 @@ def generate_emi_schedule(loan):
 
         balance = closing_balance
 
-    print(f"📅 Generated {n} EMI installments for Loan #{loan.id}")
+    print(f"Generated {n} EMI installments for Loan #{loan.id}")
 
 
 # ============================================================

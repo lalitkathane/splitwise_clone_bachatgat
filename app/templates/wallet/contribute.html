@@ -13,7 +13,6 @@
             </div>
             <div class="card-body p-4">
 
-                <!-- Current Balance Info -->
                 <div class="alert alert-info">
                     <div class="row text-center">
                         <div class="col-6">
@@ -22,7 +21,7 @@
                         </div>
                         <div class="col-6">
                             <strong>Your Contribution</strong><br>
-                            <span class="fs-4">₹{{ "%.2f"|format(user_contribution) }}</span>
+                            <span class="fs-4">₹{{ "%.2f"|format(user_ledger.principal_contributed if user_ledger else 0) }}</span>
                         </div>
                     </div>
                 </div>
@@ -69,12 +68,13 @@
     </div>
 </div>
 
+{% block scripts %}
 <script>
-// Quick amount buttons
 document.querySelectorAll('.quick-amount').forEach(btn => {
     btn.addEventListener('click', function() {
         document.querySelector('input[name="amount"]').value = this.dataset.amount;
     });
 });
 </script>
+{% endblock %}
 {% endblock %}

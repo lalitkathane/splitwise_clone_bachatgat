@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Repay Loan - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-cash"></i> Make Repayment
+                </h5>
+            </div>
+            <div class="card-body p-4">
+
+                <!-- Loan Summary -->
+                <div class="card bg-light mb-4">
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <p class="mb-1 text-muted">Total Repayable</p>
+                                <h4>₹{{ "%.2f"|format(loan.total_repayable) }}</h4>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-1 text-muted">Already Paid</p>
+                                <h4 class="text-success">₹{{ "%.2f"|format(loan.total_repaid) }}</h4>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-1 text-muted">Remaining</p>
+                                <h4 class="text-danger">₹{{ "%.2f"|format(remaining_amount) }}</h4>
+                            </div>
+                        </div>
+
+                        {% set progress = (loan.total_repaid / loan.total_repayable * 100) if loan.total_repayable else 0 %}
+                        <div class="progress mt-3" style="height: 25px;">
+                            <div class="progress-bar bg-success" style="width: {{ progress }}%">
+                                {{ "%.0f"|format(progress) }}% Complete
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EMI Selection (if applicable) -->
+                {% if emi_schedule and next_emi %}
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-calendar-check"></i> Next EMI Due</h6>
+                    <p class="mb-0">
+                        <strong>EMI #{{ next_emi.installment_number }}</strong> -
+                        ₹{{ "%.2f"|format(next_emi.emi_amount) }} due on
+                        {{ next_emi.due_date.strftime('%d %b %Y') }}
+                    </p>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Note:</strong> Repayments require admin approval.
+                    Your wallet won't be updated until approved.
+                </div>
+
+                <form method="POST" action="{{ url_for('loans.repay_loan', loan_id=loan.id) }}">
+                    {% if next_emi %}
+                    <input type="hidden" name="emi_id" value="{{ next_emi.id }}">
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Repayment Amount (₹) *</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" name="amount" class="form-control"
+                                   placeholder="Enter amount" min="1"
+                                   max="{{ remaining_amount }}" step="0.01"
+                                   value="{% if next_emi %}{{ next_emi.emi_amount }}{% endif %}" required>
+                        </div>
+                        <small class="text-muted">Maximum: ₹{{ "%.2f"|format(remaining_amount) }}</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Description (Optional)</label>
+                        <input type="text" name="description" class="form-control"
+                               placeholder="e.g., EMI payment for December">
+                    </div>
+
+                    <!-- Quick Amount Buttons -->
+                    <div class="mb-4">
+                        <label class="form-label">Quick Select:</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if next_emi %}
+                            <button type="button" class="btn btn-outline-warning quick-amount"
+                                    data-amount="{{ next_emi.emi_amount }}">
+                                EMI (₹{{ "%.0f"|format(next_emi.emi_amount) }})
+                            </button>
+                            {% endif %}
+                            {% set half = remaining_amount / 2 %}
+                            <button type="button" class="btn btn-outline-secondary quick-amount"
+                                    data-amount="{{ "%.2f"|format(half) }}">
+                                50% (₹{{ "%.0f"|format(half) }})
+                            </button>
+                            <button type="button" class="btn btn-outline-success quick-amount"
+                                    data-amount="{{ "%.2f"|format(remaining_amount) }}">
+                                Full (₹{{ "%.0f"|format(remaining_amount) }})
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="bi bi-send"></i> Submit Repayment
+                        </button>
+                        <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                           class="btn btn-outline-secondary btn-lg">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- EMI Schedule Preview -->
+        {% if emi_schedule %}
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <i class="bi bi-calendar3"></i> EMI Schedule
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Due Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emi in emi_schedule %}
+                            <tr class="{% if emi.is_paid %}table-success{% elif emi == next_emi %}table-warning{% endif %}">
+                                <td>{{ emi.installment_number }}</td>
+                                <td>{{ emi.due_date.strftime('%d %b %Y') }}</td>
+                                <td>₹{{ "%.0f"|format(emi.emi_amount) }}</td>
+                                <td>
+                                    {% if emi.is_paid %}
+                                    <span class="badge bg-success">Paid</span>
+                                    {% elif emi == next_emi %}
+                                    <span class="badge bg-warning text-dark">Next Due</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Upcoming</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.quick-amount').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelector('input[name="amount"]').value = this.dataset.amount;
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

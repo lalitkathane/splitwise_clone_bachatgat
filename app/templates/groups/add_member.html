@@ -12,7 +12,7 @@
                 </h5>
             </div>
             <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('groups.add_member', group_id=group.id) }}">
+                <form method="POST" action="{{ url_for('groups.add_member_route', group_id=group.id) }}">
                     <div class="mb-4">
                         <label class="form-label">Member's Email Address</label>
                         <input type="email" name="email" class="form-control"

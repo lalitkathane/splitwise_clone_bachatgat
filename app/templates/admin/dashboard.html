@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-shield-check text-primary"></i> Admin Dashboard</h2>
+        <p class="text-muted mb-0">{{ group.name }}</p>
+    </div>
+    <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Group
+    </a>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card primary h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-people text-primary" style="font-size: 2rem;"></i>
+                <h3 class="mt-2">{{ member_count }}</h3>
+                <p class="text-muted mb-0">Members</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card warning h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-clock text-warning" style="font-size: 2rem;"></i>
+                <h3 class="mt-2">{{ pending_loans|length }}</h3>
+                <p class="text-muted mb-0">Pending Loans</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card success h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                <h3 class="mt-2">{{ awaiting_disbursement|length }}</h3>
+                <p class="text-muted mb-0">Ready to Disburse</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card info h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-hourglass text-info" style="font-size: 2rem;"></i>
+                <h3 class="mt-2">{{ pending_repayments|length }}</h3>
+                <p class="text-muted mb-0">Pending Approvals</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Repayment Approvals -->
+{% if pending_repayments %}
+<div class="card mb-4 border-warning">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between">
+        <span><i class="bi bi-clock-history"></i> Repayments Awaiting Approval</span>
+        <a href="{{ url_for('admin.pending_repayments', group_id=group.id) }}" class="text-dark">
+            View All →
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Borrower</th>
+                        <th>Loan</th>
+                        <th>Amount</th>
+                        <th>Submitted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repayment in pending_repayments[:5] %}
+                    <tr>
+                        <td>{{ repayment.payer.name }}</td>
+                        <td>₹{{ "%.0f"|format(repayment.loan.approved_amount) }}</td>
+                        <td><strong>₹{{ "%.2f"|format(repayment.amount) }}</strong></td>
+                        <td>{{ repayment.submitted_at.strftime('%d %b, %I:%M %p') }}</td>
+                        <td>
+                            <form action="{{ url_for('wallet.approve_repayment_route', repayment_id=repayment.id) }}"
+                                  method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                            </form>
+                            <a href="{{ url_for('admin.repayment_detail', repayment_id=repayment.id) }}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Awaiting Disbursement -->
+{% if awaiting_disbursement %}
+<div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white">
+        <i class="bi bi-cash-stack"></i> Ready for Disbursement
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Borrower</th>
+                        <th>Amount</th>
+                        <th>Approved On</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in awaiting_disbursement %}
+                    <tr>
+                        <td>{{ loan.requester.name }}</td>
+                        <td><strong>₹{{ "%.2f"|format(loan.approved_amount) }}</strong></td>
+                        <td>{{ loan.approved_at.strftime('%d %b %Y') }}</td>
+                        <td>
+                            {% if group.wallet and group.wallet.balance >= loan.approved_amount %}
+                            <form action="{{ url_for('wallet.disburse', loan_id=loan.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-success"
+                                        onclick="return confirm('Disburse ₹{{ loan.approved_amount }}?')">
+                                    <i class="bi bi-check-lg"></i> Disburse
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="badge bg-danger">Insufficient Balance</span>
+                            {% endif %}
+                            <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                               class="btn btn-sm btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="alert alert-light mt-3 mb-0">
+            <strong>Wallet Balance:</strong> ₹{{ "%.2f"|format(group.wallet.balance if group.wallet else 0) }}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Active Loans -->
+{% if active_loans %}
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <i class="bi bi-cash-coin"></i> Active Loans ({{ active_loans|length }})
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Borrower</th>
+                        <th>Amount</th>
+                        <th>Repaid</th>
+                        <th>Remaining</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in active_loans %}
+                    {% set remaining = loan.get_remaining_amount() %}
+                    {% set progress = ((loan.total_repaid / loan.total_repayable) * 100) if loan.total_repayable else 0 %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}">
+                                {{ loan.requester.name }}
+                            </a>
+                        </td>
+                        <td>₹{{ "%.0f"|format(loan.approved_amount) }}</td>
+                        <td class="text-success">₹{{ "%.0f"|format(loan.total_repaid) }}</td>
+                        <td class="text-danger">₹{{ "%.0f"|format(remaining) }}</td>
+                        <td style="width: 150px;">
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar bg-success" style="width: {{ progress }}%">
+                                    {{ "%.0f"|format(progress) }}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Links -->
+<div class="row">
+    <div class="col-md-4 mb-3">
+        <a href="{{ url_for('wallet.view_wallet', group_id=group.id) }}" class="btn btn-outline-primary w-100 py-3">
+            <i class="bi bi-wallet2 fs-4"></i><br>
+            Manage Wallet
+        </a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="{{ url_for('groups.group_settings', group_id=group.id) }}" class="btn btn-outline-secondary w-100 py-3">
+            <i class="bi bi-sliders fs-4"></i><br>
+            Group Settings
+        </a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="{{ url_for('admin.transfer_history', group_id=group.id) }}" class="btn btn-outline-info w-100 py-3">
+            <i class="bi bi-clock-history fs-4"></i><br>
+            Admin History
+        </a>
+    </div>
+</div>
+{% endblock %}

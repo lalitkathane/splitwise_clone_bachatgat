@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Pending Repayments - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-clock-history"></i> Pending Repayment Approvals</h2>
+        <p class="text-muted mb-0">{{ group.name }}</p>
+    </div>
+    <a href="{{ url_for('admin.admin_dashboard', group_id=group.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Back to Admin
+    </a>
+</div>
+
+{% if repayments %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Borrower</th>
+                        <th>Loan Amount</th>
+                        <th>Repayment</th>
+                        <th>Submitted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repayment in repayments %}
+                    <tr>
+                        <td>{{ repayment.payer.name }}</td>
+                        <td>₹{{ "%.0f"|format(repayment.loan.approved_amount) }}</td>
+                        <td><strong>₹{{ "%.2f"|format(repayment.amount) }}</strong></td>
+                        <td>{{ repayment.submitted_at.strftime('%d %b %Y, %I:%M %p') }}</td>
+                        <td>
+                            <form action="{{ url_for('wallet.approve_repayment_route', repayment_id=repayment.id) }}"
+                                  method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-success"
+                                        onclick="return confirm('Approve this repayment?')">
+                                    <i class="bi bi-check"></i> Approve
+                                </button>
+                            </form>
+                            <a href="{{ url_for('loans.view_loan', loan_id=repayment.loan.id) }}"
+                               class="btn btn-sm btn-outline-primary">
+                                View Loan
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+    <h4 class="mt-3 text-muted">No pending repayments</h4>
+</div>
+{% endif %}
+{% endblock %}

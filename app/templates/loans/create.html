@@ -13,11 +13,10 @@
             </div>
             <div class="card-body p-4">
 
-                <!-- Info Alert -->
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i>
                     <strong>How it works:</strong> Your loan request will be sent to
-                    {{ group.get_member_count() - 1 }} group members for approval.
+                    {{ group.get_active_member_count() - 1 }} group members for approval.
                     Majority approval is required.
                 </div>
 
@@ -36,6 +35,15 @@
                         <textarea name="reason" class="form-control" rows="4"
                                   placeholder="Explain why you need this loan..." required></textarea>
                         <small class="text-muted">Be specific - this helps members decide.</small>
+                    </div>
+
+                    <div class="alert alert-light">
+                        <small>
+                            <strong>Loan Terms:</strong>
+                            Interest: {{ group.default_interest_rate }}% p.a. |
+                            Duration: {{ group.default_loan_duration_months }} months |
+                            Type: {{ 'EMI' if group.default_repayment_type == 'emi' else 'Bullet' }}
+                        </small>
                     </div>
 
                     <div class="d-flex gap-2">

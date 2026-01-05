@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Member Ledgers - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-people"></i> Member Ledgers</h2>
+        <p class="text-muted mb-0">{{ group.name }}</p>
+    </div>
+    <a href="{{ url_for('wallet.view_wallet', group_id=group.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Back to Wallet
+    </a>
+</div>
+
+<!-- Summary -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h4>Total Principal</h4>
+                <h2>₹{{ "%.2f"|format(total_principal) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h4>Total Interest Earned</h4>
+                <h2>₹{{ "%.2f"|format(total_interest) }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if ledgers %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Member</th>
+                        <th>Contributed</th>
+                        <th>Interest Earned</th>
+                        <th>Total Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ledger in ledgers %}
+                    <tr>
+                        <td>
+                            {{ ledger.member.name }}
+                            {% if ledger.member.id == current_user.id %}
+                            <span class="badge bg-info">You</span>
+                            {% endif %}
+                        </td>
+                        <td>₹{{ "%.2f"|format(ledger.principal_contributed) }}</td>
+                        <td class="text-success">₹{{ "%.2f"|format(ledger.interest_earned) }}</td>
+                        <td><strong>₹{{ "%.2f"|format(ledger.total_balance) }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-people text-muted" style="font-size: 4rem;"></i>
+    <h4 class="mt-3 text-muted">No contributions yet</h4>
+</div>
+{% endif %}
+{% endblock %}

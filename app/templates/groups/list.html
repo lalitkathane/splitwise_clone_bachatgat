@@ -23,9 +23,16 @@
                     <p class="card-text text-muted">
                         {{ group.description or 'No description' }}
                     </p>
-                    <span class="badge bg-secondary">
-                        <i class="bi bi-person"></i> {{ group.get_member_count() }} members
-                    </span>
+                    <p class="mb-2">
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-person"></i> {{ group.get_active_member_count() }} members
+                        </span>
+                        {% if group.wallet %}
+                        <span class="badge bg-success">
+                            ₹{{ "%.0f"|format(group.wallet.balance) }}
+                        </span>
+                        {% endif %}
+                    </p>
                 </div>
                 <div class="card-footer bg-transparent">
                     <a href="{{ url_for('groups.view_group', group_id=group.id) }}"

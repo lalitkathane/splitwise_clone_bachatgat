@@ -11,7 +11,7 @@ def create_app():
     db.init_app(app)
     login_manager.init_app(app)
 
-    # User loader for Flask-Login
+    # User loader
     from app.models import User
 
     @login_manager.user_loader
@@ -23,13 +23,15 @@ def create_app():
     from app.routes.groups import groups_bp
     from app.routes.loans import loans_bp
     from app.routes.wallet import wallet_bp
+    from app.routes.admin import admin_bp  # NEW
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(groups_bp)
     app.register_blueprint(loans_bp)
     app.register_blueprint(wallet_bp)
+    app.register_blueprint(admin_bp)  # NEW
 
-    # ✅ CREATE ALL TABLES (Keep this for now!)
+    # Create tables
     with app.app_context():
         db.create_all()
         print("✅ Database tables created!")

@@ -18,9 +18,9 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead class="table-light">
+                <thead>
                     <tr>
-                        <th>Date & Time</th>
+                        <th>Date</th>
                         <th>Type</th>
                         <th>Amount</th>
                         <th>Description</th>
@@ -31,22 +31,18 @@
                     {% for txn in transactions.items %}
                     <tr>
                         <td>
-                            <strong>{{ txn.created_at.strftime('%d %b %Y') }}</strong><br>
+                            {{ txn.created_at.strftime('%d %b %Y') }}<br>
                             <small class="text-muted">{{ txn.created_at.strftime('%I:%M %p') }}</small>
                         </td>
                         <td>
                             {% if txn.transaction_type == 'contribution' %}
-                            <span class="badge bg-success">
-                                <i class="bi bi-arrow-down"></i> Contribution
-                            </span>
+                            <span class="badge bg-success">Contribution</span>
                             {% elif txn.transaction_type == 'loan_disbursement' %}
-                            <span class="badge bg-danger">
-                                <i class="bi bi-arrow-up"></i> Loan Disbursement
-                            </span>
+                            <span class="badge bg-danger">Disbursement</span>
+                            {% elif txn.transaction_type == 'repayment' %}
+                            <span class="badge bg-info">Repayment</span>
                             {% else %}
-                            <span class="badge bg-info">
-                                <i class="bi bi-arrow-repeat"></i> Repayment
-                            </span>
+                            <span class="badge bg-secondary">{{ txn.transaction_type }}</span>
                             {% endif %}
                         </td>
                         <td>
@@ -57,13 +53,7 @@
                             {% endif %}
                         </td>
                         <td>{{ txn.description or '-' }}</td>
-                        <td>
-                            <i class="bi bi-person-circle"></i>
-                            {{ txn.created_by_user.name }}
-                            {% if txn.created_by_user.id == current_user.id %}
-                            <span class="badge bg-secondary">You</span>
-                            {% endif %}
-                        </td>
+                        <td>{{ txn.created_by_user.name }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -82,23 +72,15 @@
                 </li>
                 {% endif %}
 
-                {% for page in transactions.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% for page in transactions.iter_pages() %}
                     {% if page %}
-                        {% if page == transactions.page %}
-                        <li class="page-item active">
-                            <span class="page-link">{{ page }}</span>
-                        </li>
-                        {% else %}
-                        <li class="page-item">
-                            <a class="page-link" href="{{ url_for('wallet.transactions', group_id=group.id, page=page) }}">
-                                {{ page }}
-                            </a>
-                        </li>
-                        {% endif %}
+                    <li class="page-item {% if page == transactions.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('wallet.transactions', group_id=group.id, page=page) }}">
+                            {{ page }}
+                        </a>
+                    </li>
                     {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">...</span>
-                        </li>
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
                     {% endif %}
                 {% endfor %}
 
@@ -118,10 +100,6 @@
 <div class="text-center py-5">
     <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
     <h4 class="mt-3 text-muted">No transactions yet</h4>
-    <p class="text-muted">Transactions will appear here once members start contributing.</p>
-    <a href="{{ url_for('wallet.contribute', group_id=group.id) }}" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Make First Contribution
-    </a>
 </div>
 {% endif %}
 {% endblock %}

@@ -6,53 +6,98 @@
 <!-- Group Header -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start">
-            <div>
+        <div class="row align-items-center">
+            <div class="col-md-8">
                 <h2><i class="bi bi-people-fill text-primary"></i> {{ group.name }}</h2>
                 <p class="text-muted mb-2">{{ group.description or 'No description' }}</p>
-                <small class="text-muted">
-                    Created by {{ group.creator.name }} •
-                    {{ group.created_at.strftime('%d %b %Y') }}
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-secondary">
+                        <i class="bi bi-people"></i> {{ members|length }} members
+                    </span>
+                    <span class="badge bg-info">
+                        <i class="bi bi-percent"></i> {{ group.default_interest_rate }}% interest
+                    </span>
+                    <span class="badge bg-light text-dark">
+                        <i class="bi bi-calendar"></i> {{ group.default_loan_duration_months }} months
+                    </span>
+                </div>
+                <small class="text-muted d-block mt-2">
+                    Created by {{ group.creator.name }} • {{ group.created_at.strftime('%d %b %Y') }}
                 </small>
             </div>
-            <div class="text-end">
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
                 {% if is_admin %}
-                <a href="{{ url_for('groups.add_member', group_id=group.id) }}"
-                   class="btn btn-success mb-2">
-                    <i class="bi bi-person-plus"></i> Add Member
-                </a>
+                <div class="btn-group-vertical w-100">
+                    <a href="{{ url_for('admin.admin_dashboard', group_id=group.id) }}"
+                       class="btn btn-primary">
+                        <i class="bi bi-gear"></i> Admin Panel
+                    </a>
+                    <a href="{{ url_for('groups.group_settings', group_id=group.id) }}"
+                       class="btn btn-outline-primary">
+                        <i class="bi bi-sliders"></i> Settings
+                    </a>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- ✅ NEW: Wallet Summary Card -->
+<!-- Admin Alerts -->
+{% if is_admin %}
+    {% if awaiting_disbursement %}
+    <div class="alert alert-success d-flex align-items-center mb-4">
+        <i class="bi bi-check-circle fs-4 me-3"></i>
+        <div class="flex-grow-1">
+            <strong>{{ awaiting_disbursement|length }} Loan(s) Ready for Disbursement</strong>
+        </div>
+        <a href="{{ url_for('admin.admin_dashboard', group_id=group.id) }}" class="btn btn-success btn-sm">
+            Review
+        </a>
+    </div>
+    {% endif %}
+
+    {% if pending_repayments %}
+    <div class="alert alert-info d-flex align-items-center mb-4">
+        <i class="bi bi-clock-history fs-4 me-3"></i>
+        <div class="flex-grow-1">
+            <strong>{{ pending_repayments|length }} Repayment(s) Pending Approval</strong>
+        </div>
+        <a href="{{ url_for('admin.pending_repayments', group_id=group.id) }}" class="btn btn-info btn-sm">
+            Review
+        </a>
+    </div>
+    {% endif %}
+{% endif %}
+
+<!-- Wallet Card -->
 {% if wallet %}
-<div class="card mb-4 bg-light">
+<div class="card mb-4 border-primary">
     <div class="card-body">
         <div class="row align-items-center">
             <div class="col-md-3 text-center border-end">
-                <i class="bi bi-wallet2 text-primary" style="font-size: 2rem;"></i>
-                <h5 class="mt-2 mb-0">Wallet Balance</h5>
-                <h3 class="text-primary">₹{{ "%.2f"|format(wallet.balance) }}</h3>
+                <i class="bi bi-wallet2 text-primary" style="font-size: 2.5rem;"></i>
+                <h3 class="text-primary mb-0">₹{{ "%.2f"|format(wallet.balance) }}</h3>
+                <small class="text-muted">Available Balance</small>
             </div>
             <div class="col-md-3 text-center border-end">
+                <i class="bi bi-arrow-down-circle text-success"></i>
+                <h5 class="text-success mb-0">₹{{ "%.0f"|format(wallet.total_contributed) }}</h5>
                 <small class="text-muted">Contributed</small>
-                <h5 class="text-success mb-0">₹{{ "%.2f"|format(wallet.total_contributed) }}</h5>
             </div>
             <div class="col-md-3 text-center border-end">
+                <i class="bi bi-arrow-up-circle text-danger"></i>
+                <h5 class="text-danger mb-0">₹{{ "%.0f"|format(wallet.total_disbursed) }}</h5>
                 <small class="text-muted">Disbursed</small>
-                <h5 class="text-danger mb-0">₹{{ "%.2f"|format(wallet.total_disbursed) }}</h5>
             </div>
             <div class="col-md-3 text-center">
                 <a href="{{ url_for('wallet.view_wallet', group_id=group.id) }}"
-                   class="btn btn-primary">
+                   class="btn btn-primary mb-2 w-100">
                     <i class="bi bi-wallet"></i> View Wallet
                 </a>
                 <a href="{{ url_for('wallet.contribute', group_id=group.id) }}"
-                   class="btn btn-success">
-                    <i class="bi bi-plus"></i> Contribute
+                   class="btn btn-success w-100">
+                    <i class="bi bi-plus-circle"></i> Contribute
                 </a>
             </div>
         </div>
@@ -61,18 +106,27 @@
 {% endif %}
 
 <div class="row">
-    <!-- Members List -->
+    <!-- Members Card -->
     <div class="col-md-6 mb-4">
         <div class="card h-100">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-people"></i> Members ({{ members|length }})
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people"></i> Members ({{ members|length }})</span>
+                {% if is_admin %}
+                <a href="{{ url_for('groups.add_member_route', group_id=group.id) }}"
+                   class="btn btn-light btn-sm">
+                    <i class="bi bi-person-plus"></i>
+                </a>
+                {% endif %}
             </div>
-            <ul class="list-group list-group-flush">
+            <ul class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
                 {% for membership in members %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <i class="bi bi-person-circle"></i>
-                        {{ membership.user.name }}
+                        <a href="{{ url_for('groups.view_member', group_id=group.id, user_id=membership.user.id) }}"
+                           class="text-decoration-none">
+                            <i class="bi bi-person-circle"></i>
+                            {{ membership.user.name }}
+                        </a>
                         {% if membership.role == 'admin' %}
                             <span class="badge bg-warning text-dark">Admin</span>
                         {% endif %}
@@ -80,12 +134,11 @@
                             <span class="badge bg-info">You</span>
                         {% endif %}
                     </div>
-
                     {% if is_admin and membership.user.id != current_user.id %}
-                    <form action="{{ url_for('groups.remove_member', group_id=group.id, user_id=membership.user.id) }}"
-                          method="POST" style="display: inline;">
+                    <form action="{{ url_for('groups.remove_member_route', group_id=group.id, user_id=membership.user.id) }}"
+                          method="POST" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger"
-                                onclick="return confirm('Remove this member?')">
+                                onclick="return confirm('Remove {{ membership.user.name }}?')">
                             <i class="bi bi-x"></i>
                         </button>
                     </form>
@@ -96,46 +149,41 @@
         </div>
     </div>
 
-    <!-- Loan Requests -->
+    <!-- Pending Loans Card -->
     <div class="col-md-6 mb-4">
         <div class="card h-100">
-            <div class="card-header bg-warning text-dark d-flex justify-content-between">
-                <span><i class="bi bi-cash-coin"></i> Loan Requests</span>
-                <a href="{{ url_for('loans.list_loans', group_id=group.id) }}"
-                   class="text-dark">View All →</a>
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock"></i> Pending Loans ({{ pending_loans|length }})</span>
+                <a href="{{ url_for('loans.list_loans', group_id=group.id) }}" class="text-dark">
+                    View All →
+                </a>
             </div>
             <div class="card-body">
-                {% set pending_loans = group.loan_requests.filter_by(status='pending').all() %}
-
                 {% if pending_loans %}
-                    <ul class="list-group list-group-flush">
-                        {% for loan in pending_loans[:3] %}
-                        <li class="list-group-item">
-                            <div class="d-flex justify-content-between">
-                                <div>
-                                    <strong>₹{{ "%.0f"|format(loan.amount) }}</strong>
-                                    by {{ loan.requester.name }}
-                                </div>
-                                <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
-                                   class="btn btn-sm btn-outline-warning">
-                                    {% if loan.requester.id != current_user.id %}
-                                        Vote
-                                    {% else %}
-                                        View
-                                    {% endif %}
-                                </a>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    </ul>
+                <ul class="list-group list-group-flush">
+                    {% for loan in pending_loans[:5] %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>₹{{ "%.0f"|format(loan.amount) }}</strong>
+                            <span class="text-muted">by {{ loan.requester.name }}</span>
+                            <br>
+                            <small class="text-muted">
+                                {{ loan.get_approval_count() }}/{{ loan.required_approvals }} approvals
+                            </small>
+                        </div>
+                        <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                           class="btn btn-sm btn-outline-warning">
+                            {% if loan.requested_by != current_user.id %}Vote{% else %}View{% endif %}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
                 {% else %}
-                    <p class="text-muted text-center py-3">
-                        No pending loan requests.
-                    </p>
+                <p class="text-muted text-center py-4 mb-0">No pending loan requests.</p>
                 {% endif %}
 
                 <a href="{{ url_for('loans.create_loan', group_id=group.id) }}"
-                   class="btn btn-warning w-100 mt-2">
+                   class="btn btn-warning w-100 mt-3">
                     <i class="bi bi-plus-lg"></i> Request Loan
                 </a>
             </div>
@@ -143,18 +191,24 @@
     </div>
 </div>
 
-<!-- Back & Leave Buttons -->
-<div class="mt-4">
+<!-- Action Buttons -->
+<div class="d-flex flex-wrap gap-2 mt-4">
     <a href="{{ url_for('groups.list_groups') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Back to Groups
     </a>
 
-    <form action="{{ url_for('groups.leave_group', group_id=group.id) }}"
-          method="POST" style="display: inline;">
-        <button type="submit" class="btn btn-outline-danger"
-                onclick="return confirm('Are you sure you want to leave this group?')">
-            <i class="bi bi-box-arrow-left"></i> Leave Group
-        </button>
-    </form>
+    <a href="{{ url_for('loans.list_loans', group_id=group.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-list"></i> All Loans
+    </a>
+
+    {% if is_admin %}
+    <a href="{{ url_for('groups.transfer_admin_route', group_id=group.id) }}" class="btn btn-outline-warning">
+        <i class="bi bi-arrow-left-right"></i> Transfer Admin
+    </a>
+    {% endif %}
+
+    <a href="{{ url_for('groups.leave_group_route', group_id=group.id) }}" class="btn btn-outline-danger">
+        <i class="bi bi-box-arrow-left"></i> Leave Group
+    </a>
 </div>
 {% endblock %}

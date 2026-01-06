@@ -20,12 +20,12 @@
                     <div class="mb-3">
                         <label class="form-label">Group Name *</label>
                         <input type="text" name="name" class="form-control"
-                               value="{{ group.name }}" required>
+                               value="{{ group.name }}" required maxlength="50">
                     </div>
 
                     <div class="mb-4">
                         <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="3">{{ group.description or '' }}</textarea>
+                        <textarea name="description" class="form-control" rows="3" maxlength="250">{{ group.description or '' }}</textarea>
                     </div>
 
                     <hr>

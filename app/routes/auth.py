@@ -94,16 +94,22 @@ def logout():
 @auth_bp.route('/dashboard')
 @login_required
 def dashboard():
-    from app.models import LoanRequest, LoanRepayment, GroupMember, LoanStatus, RepaymentStatus
+    from app.models import (
+        LoanRequest, LoanRepayment, GroupMember, LoanStatus, RepaymentStatus,
+        LoanApproval, MemberContribution, MemberLedger, EMISchedule, WalletTransaction,
+        TransactionType
+    )
+    from datetime import datetime, timedelta
+    from sqlalchemy import or_, and_
 
     # Get user's groups
     memberships = current_user.get_active_memberships().all()
     groups = [m.group for m in memberships]
+    group_ids = [m.group_id for m in memberships]
 
     # Get pending votes count
     pending_votes = 0
     for membership in memberships:
-        from app.models import LoanApproval
         group_loans = LoanRequest.query.filter_by(
             group_id=membership.group_id,
             status=LoanStatus.PENDING.value,
@@ -138,11 +144,130 @@ def dashboard():
 
     total_outstanding = sum(loan.get_remaining_amount() for loan in active_loans)
 
+    # ========== Total Contributions ==========
+    total_contributions = db.session.query(
+        db.func.coalesce(db.func.sum(MemberContribution.amount), 0)
+    ).filter(
+        MemberContribution.user_id == current_user.id
+    ).scalar() or 0
+
+    # ========== Total Interest Earned ==========
+    total_interest_earned = db.session.query(
+        db.func.coalesce(db.func.sum(MemberLedger.interest_earned), 0)
+    ).filter(
+        MemberLedger.user_id == current_user.id
+    ).scalar() or 0
+
+    # ========== Next Due Payment (Reminder: show if due within 6 days) ==========
+    next_emi = None
+    if active_loans:
+        loan_ids = [loan.id for loan in active_loans]
+        today = datetime.utcnow().date()
+        # This is the "deadline" for the reminder
+        reminder_window_end = today + timedelta(days=6)
+
+        next_emi = EMISchedule.query.filter(
+            EMISchedule.loan_id.in_(loan_ids),
+            EMISchedule.is_paid == False,
+            EMISchedule.due_date >= today,  # Must be today or in the future
+            EMISchedule.due_date <= reminder_window_end  # AND must be within the next 6 days
+        ).order_by(EMISchedule.due_date.asc()).first()
+
+    # ========== Recent Activities ==========
+    recent_activities = []
+
+    # Recent contributions by user
+    recent_contributions = MemberContribution.query.filter(
+        MemberContribution.user_id == current_user.id
+    ).order_by(MemberContribution.contributed_at.desc()).limit(3).all()
+
+    for contrib in recent_contributions:
+        recent_activities.append({
+            'message': f'Contributed ₹{contrib.amount:.0f} to {contrib.wallet.group.name}',
+            'icon': 'bi-plus-circle',
+            'color': 'success',
+            'timestamp': contrib.contributed_at
+        })
+
+    # Recent repayments by user
+    recent_repayments = LoanRepayment.query.filter(
+        LoanRepayment.paid_by == current_user.id,
+        LoanRepayment.status == RepaymentStatus.APPROVED.value
+    ).order_by(LoanRepayment.approved_at.desc()).limit(3).all()
+
+    for repay in recent_repayments:
+        recent_activities.append({
+            'message': f'Repaid ₹{repay.amount:.0f} for loan',
+            'icon': 'bi-cash',
+            'color': 'info',
+            'timestamp': repay.approved_at
+        })
+
+    # Recent loan status changes for user's loans
+    recent_loan_updates = LoanRequest.query.filter(
+        LoanRequest.requested_by == current_user.id,
+        LoanRequest.is_active == True,
+        LoanRequest.status.in_([LoanStatus.APPROVED.value, LoanStatus.DISBURSED.value, LoanStatus.REJECTED.value])
+    ).order_by(LoanRequest.updated_at.desc()).limit(3).all()
+
+    for loan in recent_loan_updates:
+        if loan.status == LoanStatus.DISBURSED.value:
+            recent_activities.append({
+                'message': f'Loan ₹{loan.approved_amount:.0f} disbursed',
+                'icon': 'bi-check-circle',
+                'color': 'success',
+                'timestamp': loan.disbursed_at
+            })
+        elif loan.status == LoanStatus.APPROVED.value:
+            recent_activities.append({
+                'message': f'Loan ₹{loan.amount:.0f} approved',
+                'icon': 'bi-hand-thumbs-up',
+                'color': 'primary',
+                'timestamp': loan.approved_at
+            })
+        elif loan.status == LoanStatus.REJECTED.value:
+            recent_activities.append({
+                'message': f'Loan ₹{loan.amount:.0f} rejected',
+                'icon': 'bi-x-circle',
+                'color': 'danger',
+                'timestamp': loan.rejected_at
+            })
+
+    # Sort activities by timestamp and take latest 5
+    recent_activities = sorted(
+        [a for a in recent_activities if a['timestamp']],
+        key=lambda x: x['timestamp'],
+        reverse=True
+    )[:5]
+
+    # Add time_ago to activities
+    def time_ago(dt):
+        if not dt:
+            return ''
+        now = datetime.utcnow()
+        diff = now - dt
+        if diff.days > 0:
+            return f'{diff.days}d ago'
+        elif diff.seconds >= 3600:
+            return f'{diff.seconds // 3600}h ago'
+        elif diff.seconds >= 60:
+            return f'{diff.seconds // 60}m ago'
+        else:
+            return 'Just now'
+
+    for activity in recent_activities:
+        activity['time_ago'] = time_ago(activity['timestamp'])
+
     return render_template(
         'dashboard.html',
         groups=groups,
         pending_votes=pending_votes,
         pending_repayment_approvals=pending_repayment_approvals,
         active_loans=active_loans,
-        total_outstanding=total_outstanding
+        total_outstanding=total_outstanding,
+        total_contributions=total_contributions,
+        total_interest_earned=total_interest_earned,
+        next_emi=next_emi,
+        recent_activities=recent_activities,
+        now=datetime.utcnow()
     )

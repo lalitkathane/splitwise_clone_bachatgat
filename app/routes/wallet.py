@@ -32,7 +32,6 @@ wallet_bp = Blueprint('wallet', __name__)
 @login_required
 def view_wallet(group_id):
     group = Group.query.get_or_404(group_id)
-
     if not is_group_member(current_user.id, group_id):
         flash('You are not a member of this group!', 'danger')
         return redirect(url_for('groups.list_groups'))
@@ -48,12 +47,6 @@ def view_wallet(group_id):
     except Exception as e:
         flash(f'Error loading wallet: {str(e)}', 'danger')
         summary = None
-
-    # Get user's ledger
-    user_ledger = MemberLedger.query.filter_by(
-        wallet_id=wallet.id,
-        user_id=current_user.id
-    ).first()
 
     # Get pending disbursements (for admin)
     pending_disbursements = []
@@ -77,6 +70,13 @@ def view_wallet(group_id):
         is_reversed=False
     ).order_by(WalletTransaction.created_at.desc()).limit(10).all()
 
+    # Get recent ledgers (for admin)
+    recent_ledgers = []
+    if is_group_admin(current_user.id, group_id):
+        recent_ledgers = MemberLedger.query.filter_by(
+            wallet_id=wallet.id
+        ).order_by(MemberLedger.updated_at.desc(), MemberLedger.created_at.desc()).limit(10).all()
+
     is_admin = is_group_admin(current_user.id, group_id)
 
     return render_template(
@@ -84,7 +84,7 @@ def view_wallet(group_id):
         group=group,
         wallet=wallet,
         summary=summary,
-        user_ledger=user_ledger,
+        recent_ledgers=recent_ledgers,
         pending_disbursements=pending_disbursements,
         active_loans=active_loans,
         recent_transactions=recent_transactions,

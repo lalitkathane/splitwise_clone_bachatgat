@@ -1,14 +1,13 @@
 """
 GROUP MANAGEMENT ROUTES
 =======================
-
-Uses membership_service for all operations.
+Clean, simplified group management.
 """
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Group, GroupMember, User, MemberRole
+from app.models import Group, GroupMember, User, MemberRole, LoanRequest, LoanStatus
 from app.services.wallet_service import create_wallet_for_group
 from app.services.membership_service import (
     add_member, leave_group, remove_member, transfer_admin,
@@ -26,7 +25,7 @@ groups_bp = Blueprint('groups', __name__)
 @login_required
 def list_groups():
     memberships = current_user.get_active_memberships().all()
-    my_groups = [membership.group for membership in memberships]
+    my_groups = [m.group for m in memberships]
     return render_template('groups/list.html', groups=my_groups)
 
 
@@ -35,12 +34,7 @@ def list_groups():
 @login_required
 def create_group():
     if request.method == 'POST':
-        name = request.form.get('name')
-        description = request.form.get('description')
-        interest_rate = request.form.get('interest_rate', 12.0, type=float)
-        loan_duration = request.form.get('loan_duration', 12, type=int)
-        repayment_type = request.form.get('repayment_type', 'emi')
-        use_flat_rate = 'use_flat_rate' in request.form  # NEW: Checkbox
+        name = request.form.get('name', '').strip()
 
         if not name:
             flash('Group name is required!', 'danger')
@@ -50,28 +44,26 @@ def create_group():
             # Create group
             new_group = Group(
                 name=name,
-                description=description,
+                description=request.form.get('description', '').strip(),
                 created_by=current_user.id,
-                default_interest_rate=interest_rate,
-                default_loan_duration_months=loan_duration,
-                default_repayment_type=repayment_type,
-                use_flat_rate=use_flat_rate  # NEW
+                default_interest_rate=request.form.get('interest_rate', 12.0, type=float),
+                default_loan_duration_months=request.form.get('loan_duration', 12, type=int),
+                default_repayment_type=request.form.get('repayment_type', 'emi'),
+                use_flat_rate='use_flat_rate' in request.form
             )
             db.session.add(new_group)
             db.session.flush()
 
             # Add creator as admin
-            membership = GroupMember(
+            db.session.add(GroupMember(
                 group_id=new_group.id,
                 user_id=current_user.id,
                 role=MemberRole.ADMIN.value
-            )
-            db.session.add(membership)
+            ))
             db.session.flush()
 
             # Create wallet
             create_wallet_for_group(new_group.id)
-
             db.session.commit()
 
             flash(f'Group "{name}" created successfully!', 'success')
@@ -80,7 +72,6 @@ def create_group():
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating group: {str(e)}', 'danger')
-            return redirect(url_for('groups.create_group'))
 
     return render_template('groups/create.html')
 
@@ -97,18 +88,18 @@ def view_group(group_id):
 
     members = GroupMember.query.filter_by(group_id=group_id, is_active=True).all()
     is_admin = is_group_admin(current_user.id, group_id)
-    wallet = group.wallet
 
-    # Get pending loans
-    from app.models import LoanRequest, LoanStatus
+    # Pending loans
     pending_loans = LoanRequest.query.filter_by(
         group_id=group_id,
         status=LoanStatus.PENDING.value,
         is_active=True
-    ).all()
+    ).order_by(LoanRequest.created_at.desc()).all()
 
-    # Get loans awaiting disbursement (for admin)
+    # Admin-only data
     awaiting_disbursement = []
+    pending_repayments = []
+
     if is_admin:
         awaiting_disbursement = LoanRequest.query.filter_by(
             group_id=group_id,
@@ -116,9 +107,6 @@ def view_group(group_id):
             is_active=True
         ).filter(LoanRequest.disbursed_at.is_(None)).all()
 
-    # Get pending repayment approvals (for admin)
-    pending_repayments = []
-    if is_admin:
         from app.models import LoanRepayment, RepaymentStatus
         pending_repayments = LoanRepayment.query.join(LoanRequest).filter(
             LoanRequest.group_id == group_id,
@@ -130,7 +118,7 @@ def view_group(group_id):
         group=group,
         members=members,
         is_admin=is_admin,
-        wallet=wallet,
+        wallet=group.wallet,
         pending_loans=pending_loans,
         awaiting_disbursement=awaiting_disbursement,
         pending_repayments=pending_repayments
@@ -148,15 +136,15 @@ def group_settings(group_id):
         return redirect(url_for('groups.view_group', group_id=group_id))
 
     if request.method == 'POST':
-        group.name = request.form.get('name', group.name)
-        group.description = request.form.get('description', group.description)
+        group.name = request.form.get('name', group.name).strip()
+        group.description = request.form.get('description', group.description).strip()
         group.default_interest_rate = request.form.get('interest_rate', group.default_interest_rate, type=float)
         group.default_loan_duration_months = request.form.get('loan_duration', group.default_loan_duration_months, type=int)
         group.default_repayment_type = request.form.get('repayment_type', group.default_repayment_type)
-        group.use_flat_rate = 'use_flat_rate' in request.form  # NEW: Update flat rate setting
+        group.use_flat_rate = 'use_flat_rate' in request.form
 
         db.session.commit()
-        flash('Group settings updated successfully!', 'success')
+        flash('Settings updated!', 'success')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
     return render_template('groups/settings.html', group=group)
@@ -173,21 +161,18 @@ def add_member_route(group_id):
         return redirect(url_for('groups.view_group', group_id=group_id))
 
     if request.method == 'POST':
-        email = request.form.get('email')
+        email = request.form.get('email', '').strip().lower()
         user = User.query.filter_by(email=email).first()
 
         if not user:
             flash('User not found with this email!', 'danger')
-            return redirect(url_for('groups.add_member_route', group_id=group_id))
-
-        try:
-            add_member(group_id, user.id, current_user.id)
-            flash(f'{user.name} added to group!', 'success')
-            return redirect(url_for('groups.view_group', group_id=group_id))
-        except MembershipError as e:
-            flash(str(e), 'warning')
-        except AuthorizationError as e:
-            flash(str(e), 'danger')
+        else:
+            try:
+                add_member(group_id, user.id, current_user.id)
+                flash(f'{user.name} added to group!', 'success')
+                return redirect(url_for('groups.view_group', group_id=group_id))
+            except (MembershipError, AuthorizationError) as e:
+                flash(str(e), 'warning')
 
     return render_template('groups/add_member.html', group=group)
 
@@ -199,9 +184,7 @@ def remove_member_route(group_id, user_id):
     try:
         remove_member(group_id, user_id, current_user.id)
         flash('Member removed!', 'success')
-    except MembershipError as e:
-        flash(str(e), 'danger')
-    except AuthorizationError as e:
+    except (MembershipError, AuthorizationError) as e:
         flash(str(e), 'danger')
 
     return redirect(url_for('groups.view_group', group_id=group_id))
@@ -212,30 +195,22 @@ def remove_member_route(group_id, user_id):
 @login_required
 def leave_group_route(group_id):
     group = Group.query.get_or_404(group_id)
-
-    # Get liabilities first
     liabilities = get_member_liabilities(current_user.id, group_id)
 
     if request.method == 'POST':
         if not liabilities['can_leave']:
-            flash('Cannot leave group due to outstanding liabilities!', 'danger')
+            flash('Cannot leave - you have outstanding liabilities!', 'danger')
             return redirect(url_for('groups.leave_group_route', group_id=group_id))
 
         try:
             leave_group(group_id, current_user.id)
-            flash('You left the group!', 'info')
+            flash('You left the group.', 'info')
             return redirect(url_for('groups.list_groups'))
-        except MembershipError as e:
-            flash(str(e), 'danger')
-        except AuthorizationError as e:
+        except (MembershipError, AuthorizationError) as e:
             flash(str(e), 'danger')
             return redirect(url_for('groups.view_group', group_id=group_id))
 
-    return render_template(
-        'groups/leave.html',
-        group=group,
-        liabilities=liabilities
-    )
+    return render_template('groups/leave.html', group=group, liabilities=liabilities)
 
 
 # ============== TRANSFER ADMIN ==============
@@ -245,10 +220,9 @@ def transfer_admin_route(group_id):
     group = Group.query.get_or_404(group_id)
 
     if not is_group_admin(current_user.id, group_id):
-        flash('Only admin can transfer admin rights!', 'danger')
+        flash('Only admin can transfer rights!', 'danger')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
-    # Get eligible members (non-admin active members)
     eligible_members = GroupMember.query.filter(
         GroupMember.group_id == group_id,
         GroupMember.is_active == True,
@@ -258,26 +232,19 @@ def transfer_admin_route(group_id):
 
     if request.method == 'POST':
         to_user_id = request.form.get('to_user_id', type=int)
-        reason = request.form.get('reason', '')
+        reason = request.form.get('reason', '').strip()
 
         if not to_user_id:
             flash('Please select a member!', 'danger')
-            return redirect(url_for('groups.transfer_admin_route', group_id=group_id))
+        else:
+            try:
+                transfer_admin(group_id, current_user.id, to_user_id, reason)
+                flash('Admin rights transferred!', 'success')
+                return redirect(url_for('groups.view_group', group_id=group_id))
+            except (MembershipError, AuthorizationError) as e:
+                flash(str(e), 'danger')
 
-        try:
-            transfer_admin(group_id, current_user.id, to_user_id, reason)
-            flash('Admin rights transferred successfully!', 'success')
-            return redirect(url_for('groups.view_group', group_id=group_id))
-        except MembershipError as e:
-            flash(str(e), 'danger')
-        except AuthorizationError as e:
-            flash(str(e), 'danger')
-
-    return render_template(
-        'groups/transfer_admin.html',
-        group=group,
-        eligible_members=eligible_members
-    )
+    return render_template('groups/transfer_admin.html', group=group, eligible_members=eligible_members)
 
 
 # ============== VIEW MEMBER PROFILE ==============
@@ -292,24 +259,16 @@ def view_member(group_id, user_id):
 
     member = User.query.get_or_404(user_id)
     membership = GroupMember.query.filter_by(
-        group_id=group_id,
-        user_id=user_id,
-        is_active=True
+        group_id=group_id, user_id=user_id, is_active=True
     ).first_or_404()
 
-    # Get member's ledger
     from app.models import MemberLedger
     ledger = MemberLedger.query.filter_by(
-        wallet_id=group.wallet.id,
-        user_id=user_id
-    ).first()
+        wallet_id=group.wallet.id, user_id=user_id
+    ).first() if group.wallet else None
 
-    # Get member's loans in this group
-    from app.models import LoanRequest
     loans = LoanRequest.query.filter_by(
-        group_id=group_id,
-        requested_by=user_id,
-        is_active=True
+        group_id=group_id, requested_by=user_id, is_active=True
     ).all()
 
     return render_template(

@@ -3,159 +3,84 @@
 {% block title %}Wallet - {{ group.name }}{% endblock %}
 
 {% block content %}
-<!-- Wallet Header -->
-<div class="card mb-4 bg-primary text-white">
-    <div class="card-body">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <h2><i class="bi bi-wallet2"></i> Group Wallet</h2>
-                <p class="mb-0">{{ group.name }}</p>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold mb-0"><i class="bi bi-wallet2 text-primary"></i> Group Wallet</h2>
+    </div>
+    <div class="text-end">
+        <div class="text-muted small">Available Balance</div>
+        <h2 class="text-primary fw-bold mb-0">₹{{ "%.2f"|format(wallet.balance) }}</h2>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm text-center">
+            <div class="card-body py-3">
+                <i class="bi bi-arrow-down-circle text-success fs-4"></i>
+                <h5 class="text-success mb-0 mt-2">₹{{ "%.0f"|format(summary.total_contributed) }}</h5>
+                <small class="text-muted">Contributed</small>
             </div>
-            <div class="col-md-6 text-md-end">
-                <h1 class="display-4 mb-0">₹{{ "%.2f"|format(wallet.balance) }}</h1>
-                <small>Available Balance</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm text-center">
+            <div class="card-body py-3">
+                <i class="bi bi-arrow-up-circle text-danger fs-4"></i>
+                <h5 class="text-danger mb-0 mt-2">₹{{ "%.0f"|format(summary.total_disbursed) }}</h5>
+                <small class="text-muted">Disbursed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm text-center">
+            <div class="card-body py-3">
+                <i class="bi bi-arrow-repeat text-info fs-4"></i>
+                <h5 class="text-info mb-0 mt-2">₹{{ "%.0f"|format(summary.total_repaid) }}</h5>
+                <small class="text-muted">Repaid</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm text-center">
+            <div class="card-body py-3">
+                <i class="bi bi-graph-up text-warning fs-4"></i>
+                <h5 class="text-warning mb-0 mt-2">₹{{ "%.0f"|format(summary.total_interest_earned) }}</h5>
+                <small class="text-muted">Interest Earned</small>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Stats -->
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <i class="bi bi-arrow-down-circle text-success" style="font-size: 2rem;"></i>
-                <h4 class="mt-2 text-success">₹{{ "%.0f"|format(summary.total_contributed) }}</h4>
-                <p class="text-muted mb-0">Contributed</p>
-            </div>
-        </div>
+{% if is_admin and recent_ledgers %}
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="fw-semibold"><i class="bi bi-people"></i> Recent Ledgers</span>
+        <a href="{{ url_for('wallet.member_ledgers', group_id=group.id) }}" class="text-decoration-none">View All</a>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <i class="bi bi-arrow-up-circle text-danger" style="font-size: 2rem;"></i>
-                <h4 class="mt-2 text-danger">₹{{ "%.0f"|format(summary.total_disbursed) }}</h4>
-                <p class="text-muted mb-0">Disbursed</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <i class="bi bi-arrow-repeat text-info" style="font-size: 2rem;"></i>
-                <h4 class="mt-2 text-info">₹{{ "%.0f"|format(summary.total_repaid) }}</h4>
-                <p class="text-muted mb-0">Repaid</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="card h-100">
-            <div class="card-body text-center">
-                <i class="bi bi-graph-up text-warning" style="font-size: 2rem;"></i>
-                <h4 class="mt-2 text-warning">₹{{ "%.0f"|format(summary.total_interest_earned) }}</h4>
-                <p class="text-muted mb-0">Interest Earned</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <!-- Your Ledger -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-person-badge"></i> Your Ledger
-            </div>
-            <div class="card-body">
-                {% if user_ledger %}
-                <div class="row text-center">
-                    <div class="col-4">
-                        <h5 class="text-primary mb-0">₹{{ "%.0f"|format(user_ledger.principal_contributed) }}</h5>
-                        <small class="text-muted">Contributed</small>
-                    </div>
-                    <div class="col-4">
-                        <h5 class="text-success mb-0">₹{{ "%.0f"|format(user_ledger.interest_earned) }}</h5>
-                        <small class="text-muted">Interest Earned</small>
-                    </div>
-                    <div class="col-4">
-                        <h5 class="text-info mb-0">₹{{ "%.0f"|format(user_ledger.total_balance) }}</h5>
-                        <small class="text-muted">Total</small>
-                    </div>
-                </div>
-                {% else %}
-                <p class="text-muted text-center py-3">You haven't contributed yet.</p>
-                {% endif %}
-
-                <a href="{{ url_for('wallet.contribute', group_id=group.id) }}"
-                   class="btn btn-success w-100 mt-3">
-                    <i class="bi bi-plus-circle"></i> Make Contribution
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-lightning"></i> Quick Actions
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('wallet.member_ledgers', group_id=group.id) }}" class="btn btn-outline-primary">
-                        <i class="bi bi-people"></i> All Member Ledgers
-                    </a>
-                    <a href="{{ url_for('wallet.transactions', group_id=group.id) }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-list-ul"></i> Transaction History
-                    </a>
-                    <a href="{{ url_for('wallet.interest_distributions', group_id=group.id) }}" class="btn btn-outline-success">
-                        <i class="bi bi-graph-up"></i> My Interest Earnings
-                    </a>
-                    {% if is_admin %}
-                    <form action="{{ url_for('wallet.recalculate', group_id=group.id) }}" method="POST">
-                        <button type="submit" class="btn btn-outline-warning w-100">
-                            <i class="bi bi-arrow-clockwise"></i> Recalculate Balance
-                        </button>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Pending Disbursements (Admin) -->
-{% if is_admin and pending_disbursements %}
-<div class="card mb-4 border-success">
-    <div class="card-header bg-success text-white">
-        <i class="bi bi-check-circle"></i> Ready for Disbursement
-    </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
+            <table class="table table-hover mb-0" style="table-layout: fixed; width: 100%;">
+                <thead class="table-light">
                     <tr>
-                        <th>Borrower</th>
-                        <th>Amount</th>
-                        <th>Action</th>
+                        <th style="width: 25%;">Member</th>
+                        <th style="width: 25%;">Contributed</th>
+                        <th style="width: 25%;">Interest</th>
+                        <th style="width: 25%;">Balance</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for loan in pending_disbursements %}
+                    {% for ledger in recent_ledgers %}
                     <tr>
-                        <td>{{ loan.requester.name }}</td>
-                        <td><strong>₹{{ "%.2f"|format(loan.approved_amount) }}</strong></td>
-                        <td>
-                            {% if wallet.balance >= loan.approved_amount %}
-                            <form action="{{ url_for('wallet.disburse', loan_id=loan.id) }}" method="POST" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-success">
-                                    <i class="bi bi-check-lg"></i> Disburse
-                                </button>
-                            </form>
-                            {% else %}
-                            <span class="badge bg-danger">Insufficient</span>
+                        <td class="text-truncate">
+                            {{ ledger.member.name }}
+                            {% if ledger.member.id == current_user.id %}
+                            <span class="badge bg-info">You</span>
                             {% endif %}
                         </td>
+                        <td>₹{{ "%.2f"|format(ledger.principal_contributed) }}</td>
+                        <td class="text-success">₹{{ "%.2f"|format(ledger.interest_earned) }}</td>
+                        <td><strong>₹{{ "%.2f"|format(ledger.total_balance) }}</strong></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -165,63 +90,71 @@
 </div>
 {% endif %}
 
-<!-- Recent Transactions -->
-<div class="card mb-4">
-    <div class="card-header bg-light d-flex justify-content-between">
-        <span><i class="bi bi-clock-history"></i> Recent Transactions</span>
-        <a href="{{ url_for('wallet.transactions', group_id=group.id) }}">View All →</a>
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="fw-semibold"><i class="bi bi-clock-history"></i> Recent Transactions</span>
+        <a href="{{ url_for('wallet.transactions', group_id=group.id) }}" class="text-decoration-none">View All →</a>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         {% if recent_transactions %}
         <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-                <thead>
+            <table class="table table-hover mb-0" style="table-layout: fixed; width: 100%;">
+                <thead class="table-light">
                     <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Amount</th>
-                        <th>By</th>
+                        <th style="width: 25%;">Date</th>
+                        <th style="width: 25%;">Type</th>
+                        <th style="width: 25%;">Amount</th>
+                        <th style="width: 25%;">By</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for txn in recent_transactions %}
                     <tr>
-                        <td>{{ txn.created_at.strftime('%d %b, %I:%M %p') }}</td>
+                        <td class="text-muted small text-truncate">
+                            {{ txn.created_at.strftime('%d %b, %I:%M %p') }}
+                        </td>
                         <td>
                             {% if txn.transaction_type == 'contribution' %}
-                            <span class="badge bg-success">Contribution</span>
+                                <span class="badge bg-success-subtle text-success">Contribution</span>
                             {% elif txn.transaction_type == 'loan_disbursement' %}
-                            <span class="badge bg-danger">Disbursement</span>
+                                <span class="badge bg-danger-subtle text-danger">Disbursement</span>
                             {% elif txn.transaction_type == 'repayment' %}
-                            <span class="badge bg-info">Repayment</span>
+                                <span class="badge bg-info-subtle text-info">Repayment</span>
                             {% elif txn.transaction_type == 'interest_distribution' %}
-                            <span class="badge bg-warning text-dark">Interest</span>
+                                <span class="badge bg-warning-subtle text-warning">Interest</span>
                             {% else %}
-                            <span class="badge bg-secondary">{{ txn.transaction_type }}</span>
+                                <span class="badge bg-secondary">{{ txn.transaction_type }}</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if txn.amount > 0 %}
-                            <span class="text-success">+₹{{ "%.2f"|format(txn.amount) }}</span>
+                                <span class="text-success fw-semibold">+₹{{ "%.2f"|format(txn.amount) }}</span>
                             {% elif txn.amount < 0 %}
-                            <span class="text-danger">₹{{ "%.2f"|format(txn.amount) }}</span>
+                                <span class="text-danger fw-semibold">₹{{ "%.2f"|format(txn.amount) }}</span>
                             {% else %}
-                            <span class="text-muted">-</span>
+                                <span class="text-muted">-</span>
                             {% endif %}
                         </td>
-                        <td>{{ txn.created_by_user.name if txn.created_by_user else 'System' }}</td>
+                        <td class="text-truncate">
+                            {{ txn.created_by_user.name if txn.created_by_user else 'System' }}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% else %}
-        <p class="text-muted text-center py-3 mb-0">No transactions yet.</p>
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-inbox fs-1"></i>
+            <p class="mt-2 mb-0">No transactions yet</p>
+        </div>
         {% endif %}
     </div>
 </div>
 
-<a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">
-    <i class="bi bi-arrow-left"></i> Back to Group
-</a>
+<div class="mt-4">
+    <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Group
+    </a>
+</div>
 {% endblock %}

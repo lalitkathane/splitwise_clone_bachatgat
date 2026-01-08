@@ -1,35 +1,46 @@
 {% extends 'base.html' %}
 
-{% block title %}Add Member - {{ group.name }}{% endblock %}
+{% block title %}Add Member – {{ group.name }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-person-plus"></i> Add Member to "{{ group.name }}"
+    <div class="col-lg-6 col-md-8">
+        <div class="card shadow-sm border-0 rounded-4">
+
+            <!-- Header -->
+            <div class="card-header bg-success text-white rounded-top-4">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <i class="bi bi-person-plus me-2"></i>
+                    Add Member to "{{ group.name }}"
                 </h5>
             </div>
+
+            <!-- Body -->
             <div class="card-body p-4">
                 <form method="POST" action="{{ url_for('groups.add_member_route', group_id=group.id) }}">
+
+                    <!-- Email Input -->
                     <div class="mb-4">
-                        <label class="form-label">Member's Email Address</label>
-                        <input type="email" name="email" class="form-control"
-                               placeholder="Enter email of registered user" required>
+                        <label for="memberEmail" class="form-label fw-semibold">
+                            Member’s Email Address
+                        </label>
+                        <input type="email" id="memberEmail" name="email"
+                               class="form-control form-control-lg"
+                               placeholder="Enter registered user’s email" required>
                         <small class="text-muted">
-                            User must be registered on Bachat Gat
+                            The user must already be registered on <strong>Bachat Gat</strong>.
                         </small>
                     </div>
 
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-person-plus"></i> Add Member
-                        </button>
+                    <!-- Action Buttons -->
+                    <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-                           class="btn btn-outline-secondary">
-                            Cancel
+                           class="btn btn-outline-secondary px-4 rounded-pill">
+                            <i class="bi bi-x-circle me-1"></i> Cancel
                         </a>
+                        <button type="submit" class="btn btn-success px-4 rounded-pill">
+                            <i class="bi bi-person-plus-fill me-1"></i> Add Member
+                        </button>
                     </div>
                 </form>
             </div>

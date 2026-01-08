@@ -1,29 +1,38 @@
 {% extends 'base.html' %}
 
-{% block title %}Transfer Admin - {{ group.name }}{% endblock %}
+{% block title %}Transfer Admin – {{ group.name }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0">
-                    <i class="bi bi-arrow-left-right"></i> Transfer Admin Rights
+    <div class="col-lg-6 col-md-8">
+        <div class="card shadow-sm border-0 rounded-4">
+
+            <!-- Header -->
+            <div class="card-header bg-warning text-dark rounded-top-4">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <i class="bi bi-arrow-left-right me-2"></i>
+                    Transfer Admin Rights
                 </h5>
             </div>
+
+            <!-- Body -->
             <div class="card-body p-4">
 
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
+                <!-- Important Notice -->
+                <div class="alert alert-info rounded-3 mb-4">
+                    <i class="bi bi-info-circle me-2"></i>
                     <strong>Important:</strong> After transfer, you will become a regular member.
-                    You cannot leave the group as the only admin.
+                    You cannot leave the group if you are the only admin.
                 </div>
 
                 {% if eligible_members %}
+                <!-- Transfer Form -->
                 <form method="POST" action="{{ url_for('groups.transfer_admin_route', group_id=group.id) }}">
-                    <div class="mb-3">
-                        <label class="form-label">Select New Admin *</label>
-                        <select name="to_user_id" class="form-select form-select-lg" required>
+
+                    <!-- Select New Admin -->
+                    <div class="mb-4">
+                        <label for="newAdmin" class="form-label fw-semibold">Select New Admin *</label>
+                        <select id="newAdmin" name="to_user_id" class="form-select form-select-lg" required>
                             <option value="">Choose a member...</option>
                             {% for membership in eligible_members %}
                             <option value="{{ membership.user.id }}">
@@ -33,38 +42,41 @@
                         </select>
                     </div>
 
+                    <!-- Reason -->
                     <div class="mb-4">
-                        <label class="form-label">Reason (Optional)</label>
-                        <input type="text" name="reason" class="form-control"
+                        <label for="reason" class="form-label fw-semibold">Reason (Optional)</label>
+                        <input type="text" id="reason" name="reason" class="form-control"
                                placeholder="e.g., Stepping down, transferring responsibility">
                     </div>
 
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-warning"
-                                onclick="return confirm('Transfer admin rights? This cannot be undone.')">
-                            <i class="bi bi-arrow-left-right"></i> Transfer Admin
-                        </button>
+                    <!-- Action Buttons -->
+                    <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-                           class="btn btn-outline-secondary">
-                            Cancel
+                           class="btn btn-outline-secondary px-4 rounded-pill">
+                            <i class="bi bi-x-circle me-1"></i> Cancel
                         </a>
+                        <button type="submit" class="btn btn-warning px-4 rounded-pill"
+                                onclick="return confirm('Transfer admin rights? This cannot be undone.')">
+                            <i class="bi bi-arrow-left-right me-1"></i> Transfer Admin
+                        </button>
                     </div>
                 </form>
+
                 {% else %}
-                <div class="text-center py-4">
+                <!-- Empty State -->
+                <div class="text-center py-5">
                     <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
-                    <h5 class="mt-3 text-muted">No Eligible Members</h5>
+                    <h5 class="mt-3 text-muted fw-semibold">No Eligible Members</h5>
                     <p class="text-muted">
                         There are no other members to transfer admin rights to.
-                        Add more members first.
+                        Please add more members first.
                     </p>
                     <a href="{{ url_for('groups.add_member_route', group_id=group.id) }}"
-                       class="btn btn-primary">
-                        <i class="bi bi-person-plus"></i> Add Member
+                       class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-person-plus me-1"></i> Add Member
                     </a>
                 </div>
                 {% endif %}
-
             </div>
         </div>
     </div>

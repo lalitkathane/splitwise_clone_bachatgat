@@ -1,0 +1,105 @@
+<!-- Shared Group Form Partial -->
+<form method="POST" action="{{ form_action }}" id="groupForm">
+    {{ form.csrf_token if form else '' }}
+
+    <!-- Basic Information -->
+    <div class="mb-4">
+        <h5 class="fw-bold mb-4 fs-5 text-primary d-flex align-items-center">
+            <i class="bi bi-info-circle me-2"></i>Basic Information
+        </h5>
+
+        <!-- Group Name -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold mb-1" for="nameInput">Group Name</label>
+            <input type="text" name="name" id="nameInput" class="form-control form-control-lg rounded-2"
+                   placeholder="e.g., Mahila Bachat Gat" required maxlength="40"
+                   value="{{ group.name if group else '' }}" autofocus>
+            <div class="form-text d-flex justify-content-between mt-1">
+                <small class="text-muted">Give your group a unique name</small>
+                <small id="nameCount" class="text-muted">{{ (group.name|length if group else 0) }} / 40</small>
+            </div>
+        </div>
+
+        <!-- Description -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold mb-1" for="descInput">Description (Optional)</label>
+            <textarea name="description" id="descInput" class="form-control rounded-2" rows="2"
+                      placeholder="Brief description of group purpose" maxlength="250">{{ group.description if group else '' }}</textarea>
+            <div class="form-text d-flex justify-content-end mt-1">
+                <small id="descCount" class="text-muted">{{ (group.description|length if group else 0) }} / 250</small>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- Default Loan Settings -->
+    <div class="mb-4">
+        <button class="btn btn-light w-100 d-flex justify-content-between align-items-center py-3 border rounded-3 shadow-sm transition-hover"
+                type="button" data-bs-toggle="collapse" data-bs-target="#advancedSettings" aria-expanded="false" aria-controls="advancedSettings">
+            <span class="fw-bold text-dark d-flex align-items-center">
+                <i class="bi bi-gear-fill me-2"></i>Default Loan Settings
+            </span>
+            <i class="bi bi-chevron-down toggle-icon"></i>
+        </button>
+
+        <div class="collapse mt-3" id="advancedSettings">
+            <div class="card card-body bg-light border-0 rounded-3 shadow-sm p-4">
+                <p class="text-muted small mb-4">These defaults can be changed for each loan later.</p>
+                <div class="row g-3">
+                    <!-- Interest Rate -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small mb-1" for="interestrate">Interest Rate (% per year)</label>
+                        <div class="input-group">
+                            <input type="number" id="interestrate" name="interestrate" class="form-control rounded-2"
+                                   value="{{ group.default_interest_rate if group else 12 }}" min="0" max="50" step="0.5">
+                            <span class="input-group-text bg-white rounded-end">%</span>
+                        </div>
+                    </div>
+
+                    <!-- Loan Duration -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small mb-1" for="loanduration">Max Duration</label>
+                        <div class="input-group">
+                            <input type="number" id="loanduration" name="loanduration" class="form-control rounded-2"
+                                   value="{{ group.default_loan_duration_months if group else 12 }}" min="1" max="60">
+                            <span class="input-group-text bg-white rounded-end">months</span>
+                        </div>
+                    </div>
+
+                    <!-- Repayment Type -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small mb-1" for="repaymenttype">Repayment Type</label>
+                        <select id="repaymenttype" name="repaymenttype" class="form-select rounded-2">
+                            <option value="emi" {% if group and group.default_repayment_type == 'emi' %}selected{% endif %}>Monthly EMI</option>
+                            <option value="bullet" {% if group and group.default_repayment_type == 'bullet' %}selected{% endif %}>Lump Sum</option>
+                        </select>
+                    </div>
+
+                    <!-- Flat Rate Checkbox -->
+                    <div class="col-12">
+                        <div class="form-check form-switch mt-4">
+                            <input class="form-check-input" type="checkbox" id="useflatrate" name="useflatrate"
+                                   {% if group and group.useflatrate %}checked{% endif %}>
+                            <label class="form-check-label fw-semibold small" for="useflatrate">Use Flat Rate Interest</label>
+                        </div>
+                        <div class="form-text ms-4 ps-2 small">
+                            <strong>Default: off</strong> - Reducing balance interest (decreases monthly).<br>
+                            <strong>On:</strong> Flat rate on full original amount (higher total interest).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Preview (only for create) -->
+                {% if not group %}
+                <div class="alert alert-primary mt-4 mb-0 rounded-3 border-0 shadow-sm" id="loanPreview">
+                    <div class="d-flex align-items-center justify-content-center small fw-semibold">
+                        <i class="bi bi-calculator-fill me-2 text-primary"></i>
+                        <span id="previewText">₹10,000 loan - ₹888/month</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</form>

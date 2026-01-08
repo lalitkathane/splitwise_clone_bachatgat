@@ -8,92 +8,20 @@
         <div class="card">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">
-                    <i class="bi bi-sliders"></i> Group Settings - {{ group.name }}
+                    <i class="bi"></i> Group Settings - {{ group.name }}
                 </h5>
             </div>
             <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('groups.group_settings', group_id=group.id) }}">
+                {% set form_action = url_for('groups.group_settings', group_id=group.id) %}
+                {% include 'groups/_form.html' %}
 
-                    <!-- Basic Info -->
-                    <h6 class="text-muted mb-3">Basic Information</h6>
-
-                    <div class="mb-3">
-                        <label class="form-label">Group Name *</label>
-                        <input type="text" name="name" class="form-control"
-                               value="{{ group.name }}" required maxlength="50">
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="3" maxlength="250">{{ group.description or '' }}</textarea>
-                    </div>
-
-                    <hr>
-
-                    <!-- Loan Settings -->
-                    <h6 class="text-muted mb-3">Default Loan Settings</h6>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Interest Rate (% per year)</label>
-                            <div class="input-group">
-                                <input type="number" name="interest_rate" class="form-control"
-                                       value="{{ group.default_interest_rate }}"
-                                       min="0" max="50" step="0.5" required>
-                                <span class="input-group-text">%</span>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Loan Duration</label>
-                            <div class="input-group">
-                                <input type="number" name="loan_duration" class="form-control"
-                                       value="{{ group.default_loan_duration_months }}"
-                                       min="1" max="60" required>
-                                <span class="input-group-text">months</span>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Repayment Type</label>
-                            <select name="repayment_type" class="form-select">
-                                <option value="emi" {% if group.default_repayment_type == 'emi' %}selected{% endif %}>
-                                    EMI (Monthly)
-                                </option>
-                                <option value="bullet" {% if group.default_repayment_type == 'bullet' %}selected{% endif %}>
-                                    Bullet (Lump Sum)
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- NEW: Flat Rate Option -->
-                    <div class="mb-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="use_flat_rate" id="use_flat_rate"
-                                   {% if group.use_flat_rate %}checked{% endif %}>
-                            <label class="form-check-label" for="use_flat_rate">
-                                <strong>Use Flat Rate Interest Calculation</strong>
-                            </label>
-                            <div class="form-text text-muted">
-                                <small>
-                                    <strong>Default (unchecked):</strong> Reducing balance — interest decreases as principal is repaid (recommended).<br>
-                                    <strong>Checked:</strong> Flat rate — interest on full principal throughout.
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-lg"></i> Save Settings
-                        </button>
-                        <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-                           class="btn btn-outline-secondary">
-                            Cancel
-                        </a>
-                    </div>
-                </form>
+                <!-- Buttons -->
+                <div class="d-flex gap-2 mt-4 pt-4 border-top justify-content-end">
+                    <button type="submit" form="groupForm" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Settings
+                    </button>
+                    <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                </div>
             </div>
         </div>
     </div>

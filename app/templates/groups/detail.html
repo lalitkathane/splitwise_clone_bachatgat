@@ -43,7 +43,8 @@
                         <!-- Created Info -->
                         <div class="small text-muted">
                             <i class="bi bi-info-circle-fill me-1"></i>
-                            Created by <strong>{{ group.creator.name }}</strong> on {{ group.created_at.strftime('%d %b %Y') }}
+                            Created by <strong>{{ group.creator.name }}</strong> on {{ group.created_at.strftime('%d %b
+                            %Y') }}
                         </div>
                     </div>
                 </div>
@@ -131,12 +132,10 @@
     <div class="col-md-6">
         <div class="card border-0 bg-success bg-opacity-10 h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="bg-success rounded-circle p-3 me-3">
-                    <i class="bi bi-check-circle-fill text-white fs-5"></i>
-                </div>
                 <div class="flex-grow-1">
                     <h6 class="mb-1 fw-bold text-success">Loans Ready to Disburse</h6>
-                    <p class="mb-0 small text-muted">{{ awaiting_disbursement|length }} approved loan(s) waiting for payment</p>
+                    <p class="mb-0 small text-muted">{{ awaiting_disbursement|length }} approved loan(s) waiting for
+                        payment</p>
                 </div>
                 <a href="{{ url_for('admin.admin_dashboard', group_id=group.id) }}" class="btn btn-success btn-sm">
                     Disburse Now
@@ -157,7 +156,8 @@
                     <h6 class="mb-1 fw-bold text-info">Repayments to Review</h6>
                     <p class="mb-0 small text-muted">{{ pending_repayments|length }} repayment(s) need your approval</p>
                 </div>
-                <a href="{{ url_for('admin.pending_repayments', group_id=group.id) }}" class="btn btn-info btn-sm text-white">
+                <a href="{{ url_for('admin.pending_repayments', group_id=group.id) }}"
+                   class="btn btn-info btn-sm text-white">
                     Review
                 </a>
             </div>
@@ -169,7 +169,8 @@
 {% endif %}
 
 <!-- ==================== MAIN CONTENT ==================== -->
-<div class="row g-4 align-items-stretch"> <div class="col-lg-5">
+<div class="row g-4 align-items-stretch">
+    <div class="col-lg-5">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white border-0 py-3 sticky-top rounded-top-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -179,37 +180,54 @@
                 {% if members|length > 10 %}
                 <div class="input-group input-group-sm mt-2">
                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
-                    <input type="text" id="memberSearch" class="form-control bg-light border-start-0" placeholder="Find member...">
+                    <input type="text" id="memberSearch" class="form-control bg-light border-start-0"
+                           placeholder="Find member...">
                 </div>
                 {% endif %}
             </div>
 
             <div class="list-group list-group-flush" style="height: 550px; overflow-y: auto;">
-                {% for membership in members %}
-                <div class="list-group-item border-0 border-bottom py-3 member-item">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            <div class="rounded-circle d-flex align-items-center justify-content-center me-3
-                                        {% if membership.role == 'admin' %}bg-warning text-dark{% else %}bg-primary bg-opacity-10 text-primary{% endif %}"
-                                 style="width: 40px; height: 40px; font-weight: 600;">
-                                {{ membership.user.name[0]|upper }}
-                            </div>
-                            <div>
-                                <h6 class="mb-0 fw-semibold text-truncate" style="max-width: 150px;">{{ membership.user.name }}</h6>
-                                <small class="text-muted">{{ membership.role|capitalize }}</small>
-                            </div>
-                        </div>
-                        {% if is_admin and membership.user.id != current_user.id %}
-                        <form action="{{ url_for('groups.remove_member_route', group_id=group.id, user_id=membership.user.id) }}" method="POST">
-                            <button type="submit" class="btn btn-link text-danger p-0" onclick="return confirm('Remove member?')">
-                                <i class="bi bi-x-circle"></i>
-                            </button>
-                        </form>
-                        {% endif %}
-                    </div>
+    {% for membership in members %}
+    <div class="list-group-item border-0 border-bottom py-3 member-item">
+        <div class="d-flex justify-content-between align-items-center">
+
+            <a href="{{ url_for('groups.view_member', group_id=group.id, user_id=membership.user.id) }}"
+               class="d-flex align-items-center text-decoration-none text-dark flex-grow-1">
+
+                <div class="rounded-circle d-flex align-items-center justify-content-center me-3
+                    {% if membership.role == 'admin' %}
+                        bg-warning text-dark
+                    {% else %}
+                        bg-primary bg-opacity-10 text-primary
+                    {% endif %}"
+                    style="width: 40px; height: 40px; font-weight: 600;">
+                    {{ membership.user.name[0]|upper }}
                 </div>
-                {% endfor %}
-            </div>
+
+                <div>
+                    <h6 class="mb-0 fw-semibold">
+                        {{ membership.user.name }}
+                    </h6>
+                    <small class="text-muted">{{ membership.role|capitalize }}</small>
+                </div>
+            </a>
+
+            {% if is_admin and membership.user.id != current_user.id %}
+            <form method="POST"
+                  action="{{ url_for('groups.remove_member_route', group_id=group.id, user_id=membership.user.id) }}"
+                  onsubmit="return confirm('Remove member?');"
+                  class="ms-2">
+                <button type="submit" class="btn btn-link text-danger p-0">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </form>
+            {% endif %}
+
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
         </div>
     </div>
 
@@ -233,94 +251,96 @@
 
             <div class="card-body">
                 {% if pending_loans %}
-                    {% for loan in pending_loans[:5] %}
-                    <div class="card border mb-3 {% if loan.requested_by == current_user.id %}border-info{% else %}border-warning{% endif %}">
-                        <div class="card-body p-3">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <!-- Amount -->
-                                    <h4 class="fw-bold text-dark mb-1">₹{{ "{:,.0f}".format(loan.amount) }}</h4>
+                {% for loan in pending_loans[:5] %}
+                <div class="card border mb-3 {% if loan.requested_by == current_user.id %}border-info{% else %}border-warning{% endif %}">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <!-- Amount -->
+                                <h4 class="fw-bold text-dark mb-1">₹{{ "{:,.0f}".format(loan.amount) }}</h4>
 
-                                    <!-- Requester -->
-                                    <p class="mb-2">
-                                        <span class="text-muted">Requested by</span>
-                                        <strong>{{ loan.requester.name }}</strong>
-                                        {% if loan.requested_by == current_user.id %}
-                                        <span class="badge bg-info">Your Request</span>
-                                        {% endif %}
-                                    </p>
-
-                                    <!-- Purpose if available -->
-                                    {% if loan.purpose %}
-                                    <p class="small text-muted mb-2">
-                                        <i class="bi bi-chat-text me-1"></i>{{ loan.purpose[:50] }}{% if loan.purpose|length > 50 %}...{% endif %}
-                                    </p>
+                                <!-- Requester -->
+                                <p class="mb-2">
+                                    <span class="text-muted">Requested by</span>
+                                    <strong>{{ loan.requester.name }}</strong>
+                                    {% if loan.requested_by == current_user.id %}
+                                    <span class="badge bg-info">Your Request</span>
                                     {% endif %}
+                                </p>
 
-                                    <!-- Voting Progress -->
-                                    <div class="d-flex align-items-center gap-2">
-                                        {% set approval_count = loan.get_approval_count() %}
-                                        {% set pct = (approval_count / loan.required_approvals) * 100 %}
+                                <!-- Purpose if available -->
+                                {% if loan.purpose %}
+                                <p class="small text-muted mb-2">
+                                    <i class="bi bi-chat-text me-1"></i>{{ loan.purpose[:50] }}{% if loan.purpose|length
+                                    > 50 %}...{% endif %}
+                                </p>
+                                {% endif %}
 
-                                        <div class="progress flex-grow-1" style="height: 8px; max-width: 150px;">
-                                            <div class="progress-bar bg-warning" style="width: {{ pct }}%"></div>
-                                        </div>
-                                        <span class="small {% if approval_count >= loan.required_approvals %}text-success fw-bold{% else %}text-muted{% endif %}">
+                                <!-- Voting Progress -->
+                                <div class="d-flex align-items-center gap-2">
+                                    {% set approval_count = loan.get_approval_count() %}
+                                    {% set pct = (approval_count / loan.required_approvals) * 100 %}
+
+                                    <div class="progress flex-grow-1" style="height: 8px; max-width: 150px;">
+                                        <div class="progress-bar bg-warning" style="width: {{ pct }}%"></div>
+                                    </div>
+                                    <span class="small {% if approval_count >= loan.required_approvals %}text-success fw-bold{% else %}text-muted{% endif %}">
                                             {{ approval_count }}/{{ loan.required_approvals }} votes
                                         </span>
 
-                                        {% if approval_count >= loan.required_approvals %}
-                                        <span class="badge bg-success">Approved!</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <!-- Action Button -->
-                                <div class="ms-3">
-                                    {% if loan.requested_by != current_user.id %}
-                                    <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
-                                       class="btn btn-warning">
-                                        <i class="bi bi-hand-thumbs-up me-1"></i> Vote
-                                    </a>
-                                    {% else %}
-                                    <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
-                                       class="btn btn-outline-info">
-                                        <i class="bi bi-eye me-1"></i> View
-                                    </a>
+                                    {% if approval_count >= loan.required_approvals %}
+                                    <span class="badge bg-success">Approved!</span>
                                     {% endif %}
                                 </div>
                             </div>
+
+                            <!-- Action Button -->
+                            <div class="ms-3">
+                                {% if loan.requested_by != current_user.id %}
+                                <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                                   class="btn btn-warning">
+                                    <i class="bi bi-hand-thumbs-up me-1"></i> Vote
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}"
+                                   class="btn btn-outline-info">
+                                    <i class="bi bi-eye me-1"></i> View
+                                </a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
-                    {% endfor %}
+                </div>
+                {% endfor %}
 
-                    {% if pending_loans|length > 5 %}
-                    <div class="text-center">
-                        <a href="{{ url_for('loans.list_loans', group_id=group.id) }}" class="btn btn-link">
-                            View {{ pending_loans|length - 5 }} more pending loans →
-                        </a>
-                    </div>
-                    {% endif %}
+                {% if pending_loans|length > 5 %}
+                <div class="text-center">
+                    <a href="{{ url_for('loans.list_loans', group_id=group.id) }}" class="btn btn-link">
+                        View {{ pending_loans|length - 5 }} more pending loans →
+                    </a>
+                </div>
+                {% endif %}
 
                 {% else %}
-                    <!-- Empty State -->
-                    <div class="text-center py-5">
-                        <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3
-                             style="width: 40px; height: 40px;">
-                            <i class="bi bi-inbox text-muted fs-1"></i>
-                        </div>
-                        <h5 class="text-muted">No Pending Loan Requests</h5>
-                        <p class="text-muted small mb-4">
-                            All loan requests have been processed, or no one has requested a loan yet.
-                        </p>
-                        <a href="{{ url_for('loans.create_loan', group_id=group.id) }}" class="btn btn-warning">
-                            <i class="bi bi-plus-circle me-1"></i> Request a Loan
-                        </a>
-                    </div>
-                {% endif %}
+                <!-- Empty State -->
+                <div class="text-center py-5">
+                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3
+                             style=" width: 40px; height: 40px;
+                    ">
+                    <i class="bi bi-inbox text-muted fs-1"></i>
+                </div>
+                <h5 class="text-muted">No Pending Loan Requests</h5>
+                <p class="text-muted small mb-4">
+                    All loan requests have been processed, or no one has requested a loan yet.
+                </p>
+                <a href="{{ url_for('loans.create_loan', group_id=group.id) }}" class="btn btn-warning">
+                    <i class="bi bi-plus-circle me-1"></i> Request a Loan
+                </a>
             </div>
+            {% endif %}
         </div>
     </div>
+</div>
 </div>
 
 <!-- ==================== FOOTER NAVIGATION ==================== -->

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Repayment History{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Repayment History - Loan #{{ loan.id }}</h4>
+
+{% if repayments %}
+<table class="table">
+    <thead class="table-light">
+        <tr>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Submitted By</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in repayments %}
+        <tr>
+            <td>{{ r.submitted_at.strftime('%d %b %Y') }}</td>
+            <td>₹{{ "%.2f"|format(r.amount) }}</td>
+            <td>
+                <span class="badge {% if r.status == 'approved' %}bg-success{% elif r.status == 'rejected' %}bg-danger{% else %}bg-warning{% endif %}">
+                    {{ r.status|title }}
+                </span>
+            </td>
+            <td>{{ r.payer.name }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-muted">No repayments recorded yet.</p>
+{% endif %}
+
+<a href="{{ url_for('loans.view_loan', loan_id=loan.id) }}" class="btn btn-outline-secondary">Back to Loan</a>
+{% endblock %}

@@ -128,6 +128,8 @@ class Group(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    min_emi_duration_months = db.Column(db.Integer, default=3)  # Minimum 1 month
+
     # Relationships
     members = db.relationship('GroupMember', backref='group', lazy='dynamic',
                               cascade='all, delete-orphan')
@@ -451,6 +453,8 @@ class LoanRequest(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    last_updated_at = db.Column(db.DateTime, nullable=True)
+    last_updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     # Relationships
     approvals = db.relationship('LoanApproval', backref='loan_request', lazy='dynamic')
     repayments = db.relationship('LoanRepayment', backref='loan', lazy='dynamic')

@@ -3,27 +3,90 @@
 {% block title %}Settings - {{ group.name }}{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="bi"></i> Group Settings - {{ group.name }}
-                </h5>
-            </div>
-            <div class="card-body p-4">
-                {% set form_action = url_for('groups.group_settings', group_id=group.id) %}
-                {% include 'groups/_form.html' %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm rounded-4 mb-5">
+                <div class="card-header bg-primary text-white p-3 rounded-top-4">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear-fill me-2"></i> Group Settings
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <form id="groupForm" action="{{ url_for('groups.group_settings', group_id=group.id) }}" method="POST">
+                        {% include 'groups/_form.html' %}
 
-                <!-- Buttons -->
-                <div class="d-flex gap-2 mt-4 pt-4 border-top justify-content-end">
-                    <button type="submit" form="groupForm" class="btn btn-primary">
-                        <i class="bi bi-check-lg"></i> Save Settings
-                    </button>
-                    <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                        <div class="mt-4 pt-4 border-top">
+                            <h6 class="fw-bold mb-3 text-primary">Loan Policy Extensions</h6>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">Minimum EMI Duration (Months)</label>
+                                <input type="number" name="min_emi_duration" class="form-control form-control-lg"
+                                       value="{{ group.min_emi_duration_months or 1 }}" min="1" max="60">
+                                <div class="form-text">The shortest timeframe allowed for any member to repay a loan.</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4 pt-4 border-top justify-content-end">
+                            <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary px-4">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">
+                                <i class="bi bi-check-lg me-1"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
+
+            {% if is_admin %}
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white py-3">
+        <i class="bi bi-exclamation-triangle me-2"></i> Danger Zone
+    </div>
+    <div class="card-body p-4">
+        <h6 class="fw-bold mb-3">Delete Group</h6>
+        <p class="text-muted small mb-4">
+            This will permanently delete the group and all its data.
+            This action cannot be undone.
+        </p>
+
+        <!-- Conditions Check -->
+        {% set total_members = members|length %}
+        {% set current_balance = wallet.balance if wallet else 0 %}
+
+        {% if total_members > 1 %}
+        <div class="alert alert-warning small mb-3">
+            <i class="bi bi-people-fill me-1"></i>
+            Remove all {{ total_members - 1 }} other member(s) first.
+        </div>
+        {% endif %}
+
+        {% if current_balance > 0 %}
+        <div class="alert alert-warning small mb-3">
+            <i class="bi bi-wallet2 me-1"></i>
+            Clear group balance (₹{{ "{:,.0f}".format(current_balance) }}) first.
+        </div>
+        {% endif %}
+
+        <!-- Delete Button -->
+        <form action="{{ url_for('groups.delete_group_route', group_id=group.id) }}" method="POST">
+            <button type="submit"
+                    class="btn btn-danger w-100"
+                    {% if total_members > 1 or current_balance > 0 %}disabled{% endif %}
+                    onclick="return confirm('Delete {{ group.name }} permanently? This cannot be undone.')">
+                <i class="bi bi-trash me-1"></i> Delete Group
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
         </div>
     </div>
 </div>
+
+<style>
+    .rounded-4 { border-radius: 1rem !important; }
+    .bg-opacity-10 { --bs-bg-opacity: 0.1; }
+    .x-small { font-size: 0.75rem; }
+</style>
 {% endblock %}

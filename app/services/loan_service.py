@@ -13,7 +13,7 @@ from datetime import datetime, date
 from app.extensions import db
 from app.models import (
     LoanRequest, LoanApproval, EMISchedule, Group, GroupMember,
-    LoanStatus, MemberRole
+    LoanStatus, MemberRole, LoanRepayment
 )
 from app.services.authorization_service import can_vote, AuthorizationError
 import math
@@ -34,8 +34,15 @@ def create_loan_request(group_id, user_id, amount, reason):
     NOW WITH WALLET BALANCE CHECK: Request denied if amount > current wallet balance
     """
     try:
+        # Validate amount - must be positive whole number
         if not amount or amount <= 0:
             raise LoanError("Loan amount must be greater than 0")
+
+        # Check if amount is a whole number (no decimals)
+        if amount != int(amount):
+            raise LoanError("Loan amount must be a whole number (no decimals allowed)")
+
+        amount = int(amount)  # Convert to integer
 
         group = Group.query.get(group_id)
         if not group:
@@ -48,8 +55,8 @@ def create_loan_request(group_id, user_id, amount, reason):
         if amount > group.wallet.balance:
             raise LoanError(
                 f"Insufficient group funds! "
-                f"Requested: ₹{amount:,.2f}, "
-                f"Available: ₹{group.wallet.balance:,.2f}. "
+                f"Requested: ₹{amount:,}, "
+                f"Available: ₹{group.wallet.balance:,.0f}. "
                 f"Reduce amount or wait for more contributions."
             )
 
@@ -206,27 +213,45 @@ def cast_vote(loan_id, user_id, approved, comment=None):
 # APPROVE LOAN WITH INTEREST CALCULATION
 # ============================================================
 
-def approve_loan_with_interest(loan):
+def approve_loan_with_interest(loan, is_regeneration=False):
     """
-    Called when loan gets majority approval.
+    Called when loan gets majority approval OR when terms are updated.
 
-    This function:
-    1. Gets loan terms from group settings
-    2. Calculates total interest
-    3. Calculates total repayable
-    4. If EMI type: calculates EMI amount & generates schedule
+    IMPORTANT CHANGE:
+    - We now only apply group defaults if the value is NOT already set on the loan.
+    - During regeneration (edit), we preserve the values already set on the loan object.
     """
+    from app.extensions import db
+
     group = loan.group
 
-    # ===== STEP 1: Get loan terms from group defaults =====
-    loan.interest_rate = group.default_interest_rate
-    loan.loan_duration_months = group.default_loan_duration_months
-    loan.repayment_type = group.default_repayment_type
-    loan.approved_amount = loan.amount
+    # ===== STEP 1: Get loan terms from group defaults ONLY if not already set =====
+    # FIXED: Removed 'or is_regeneration' to prevent overriding edited values
+    if loan.interest_rate is None:
+        loan.interest_rate = group.default_interest_rate
+
+    if loan.loan_duration_months is None:
+        loan.loan_duration_months = group.default_loan_duration_months
+
+    if loan.repayment_type is None:
+        loan.repayment_type = group.default_repayment_type
+
+    # Ensure approved_amount is set (this one can be refreshed during regeneration)
+    if not loan.approved_amount:
+        loan.approved_amount = loan.amount
+    # During regeneration we usually want to keep approved_amount = amount
+    # unless admin specifically changed approved_amount separately (rare case)
+    elif is_regeneration and loan.approved_amount != loan.amount:
+        loan.approved_amount = loan.amount
 
     # ===== STEP 2: Calculate Interest & EMI =====
     if loan.repayment_type == 'emi':
-        if getattr(group, 'use_flat_rate', False):  # Safe access in case field missing temporarily
+        # Delete existing EMI schedule if regenerating
+        if is_regeneration:
+            EMISchedule.query.filter_by(loan_id=loan.id).delete()
+            db.session.flush()
+
+        if getattr(group, 'use_flat_rate', False):
             # Flat rate calculation
             principal = loan.approved_amount
             rate = loan.interest_rate
@@ -234,6 +259,12 @@ def approve_loan_with_interest(loan):
             loan.total_interest = (principal * rate * time_in_years) / 100
             loan.total_repayable = principal + loan.total_interest
             loan.emi_amount = loan.total_repayable / loan.loan_duration_months
+
+            # Round to whole numbers (as per your existing policy)
+            loan.total_interest = round(loan.total_interest)
+            loan.total_repayable = round(loan.total_repayable)
+            loan.emi_amount = round(loan.emi_amount)
+
             generate_emi_schedule(loan)
         else:
             # Reducing balance (default)
@@ -247,20 +278,29 @@ def approve_loan_with_interest(loan):
         loan.total_repayable = principal + loan.total_interest
         loan.emi_amount = None
 
-    # ===== STEP 3: Debug Print (Fixed) =====
-    emi_display = f"₹{loan.emi_amount:,.2f}" if loan.emi_amount else "N/A (Bullet)"
+        # Round to whole numbers
+        loan.total_interest = round(loan.total_interest)
+        loan.total_repayable = round(loan.total_repayable)
 
+    # ===== STEP 3: Debug Print (helpful for development) =====
+    emi_display = f"₹{loan.emi_amount:,}" if loan.emi_amount else "N/A (Bullet)"
+
+    action = "Regenerated" if is_regeneration else "Approved"
     print(f"""
-    ✅ Loan #{loan.id} Approved!
+    ✅ Loan #{loan.id} {action}!
     ─────────────────────────────
-    Principal:      ₹{loan.approved_amount:,.2f}
+    Principal:      ₹{loan.approved_amount:,}
     Interest Rate:  {loan.interest_rate}% p.a.
     Duration:       {loan.loan_duration_months} months
+    Repayment Type: {loan.repayment_type}
     ─────────────────────────────
-    Total Interest: ₹{loan.total_interest:,.2f}
-    Total Repayable: ₹{loan.total_repayable:,.2f}
+    Total Interest: ₹{loan.total_interest:,}
+    Total Repayable: ₹{loan.total_repayable:,}
     EMI Amount:     {emi_display}
     """)
+
+    # COMMIT THE CHANGES TO DATABASE
+    db.session.commit()
 # ============================================================
 # GENERATE EMI SCHEDULE (FLAT RATE)
 # ============================================================
@@ -330,6 +370,8 @@ def generate_emi_schedule(loan):
 # ALTERNATIVE: REDUCING BALANCE EMI (Default)
 # ============================================================
 
+# In loan_service.py, update the generate_emi_schedule_reducing_balance function:
+
 def generate_emi_schedule_reducing_balance(loan):
     """
     Generate EMI schedule using reducing balance method (default).
@@ -350,25 +392,48 @@ def generate_emi_schedule_reducing_balance(loan):
     else:
         emi = principal / n
 
-    loan.emi_amount = round(emi, 2)
+    # Round EMI to nearest whole number (no decimals)
+    emi = round(emi)
+    loan.emi_amount = emi
 
     # Recalculate total interest (more accurate)
     loan.total_interest = (emi * n) - principal
     loan.total_repayable = principal + loan.total_interest
 
+    # Round to whole numbers
+    loan.total_interest = round(loan.total_interest)
+    loan.total_repayable = round(loan.total_repayable)
+
     # Generate schedule
-    balance = principal
+    balance = float(principal)
     start_date = date.today()
 
+    # Determine first EMI date (usually next month same day, or adjust if day > 28)
+    first_emi_day = start_date.day
+    if first_emi_day > 28:
+        # If day is 29, 30, or 31, set to 28th
+        first_emi_day = 28
+
     for i in range(1, n + 1):
-        # Due date calculation
+        # Calculate due date for this EMI
+        # First EMI is due next month on the same day (or adjusted to 28th)
+        due_date_month = start_date.month + i
+        due_date_year = start_date.year
+
+        # Adjust year and month if month exceeds 12
+        while due_date_month > 12:
+            due_date_month -= 12
+            due_date_year += 1
+
+        # Create due date
         try:
-            from dateutil.relativedelta import relativedelta
-            due_date = start_date + relativedelta(months=i)
-        except ImportError:
-            month = (start_date.month + i - 1) % 12 + 1
-            year = start_date.year + (start_date.month + i - 1) // 12
-            due_date = date(year, month, min(start_date.day, 28))
+            due_date = date(due_date_year, due_date_month, first_emi_day)
+        except ValueError:
+            # Handle invalid days (e.g., Feb 30)
+            # Get last day of the month
+            import calendar
+            last_day = calendar.monthrange(due_date_year, due_date_month)[1]
+            due_date = date(due_date_year, due_date_month, min(first_emi_day, last_day))
 
         # Interest for this month (on current balance)
         interest_component = balance * r
@@ -378,6 +443,7 @@ def generate_emi_schedule_reducing_balance(loan):
 
         # Handle last EMI
         if i == n:
+            # For last EMI, pay remaining balance
             principal_component = balance
             interest_component = emi - principal_component
             if interest_component < 0:
@@ -389,37 +455,59 @@ def generate_emi_schedule_reducing_balance(loan):
             loan_id=loan.id,
             installment_number=i,
             due_date=due_date,
-            emi_amount=round(emi, 2),
-            principal_component=round(principal_component, 2),
-            interest_component=round(interest_component, 2),
-            opening_balance=round(balance, 2),
-            closing_balance=round(max(closing_balance, 0), 2),
+            emi_amount=emi,
+            principal_component=round(principal_component),
+            interest_component=round(interest_component),
+            opening_balance=round(balance),
+            closing_balance=round(max(closing_balance, 0)),
             is_paid=False
         )
         db.session.add(emi_record)
 
         balance = closing_balance
 
-
+    # Commit the EMIs to database
+    db.session.commit()
 # ============================================================
 # GET LOAN DETAILS
 # ============================================================
-
 def get_loan_details(loan_id):
     """Get comprehensive loan details including EMI schedule"""
+    from app.models import LoanRepayment  # Import here if needed
+
+    # Force refresh from database
+    db.session.expire_all()
+
     loan = LoanRequest.query.get(loan_id)
     if not loan:
         return None
 
-    # Voting stats
-    approvals = loan.get_approval_count()
-    rejections = loan.get_rejection_count()
+    # Refresh the loan object to get latest data
+    db.session.refresh(loan)
+
+    # Voting stats (fresh query)
+    approvals = LoanApproval.query.filter_by(
+        loan_id=loan_id,
+        approved=True
+    ).count()
+
+    rejections = LoanApproval.query.filter_by(
+        loan_id=loan_id,
+        approved=False
+    ).count()
+
     votes_cast = approvals + rejections
 
-    # EMI schedule
+    # EMI schedule (fresh query)
     emi_schedule = []
     if loan.repayment_type == 'emi':
-        for e in loan.emi_schedule.order_by(EMISchedule.installment_number).all():
+        emi_records = EMISchedule.query.filter_by(
+            loan_id=loan_id
+        ).order_by(
+            EMISchedule.installment_number
+        ).all()
+
+        for e in emi_records:
             emi_schedule.append({
                 'installment': e.installment_number,
                 'due_date': e.due_date,
@@ -432,8 +520,12 @@ def get_loan_details(loan_id):
                 'paid_at': e.paid_at
             })
 
-    # Repayment history
-    repayments = [
+    # Repayment history (fresh query)
+    repayments = LoanRepayment.query.filter_by(
+        loan_id=loan_id
+    ).all()
+
+    repayment_list = [
         {
             'id': r.id,
             'amount': r.amount,
@@ -443,8 +535,21 @@ def get_loan_details(loan_id):
             'submitted_at': r.submitted_at,
             'approved_at': r.approved_at
         }
-        for r in loan.repayments.all()
+        for r in repayments
     ]
+
+    # Calculate remaining amount with fresh data
+    remaining = 0
+    if loan.total_repayable:
+        remaining = loan.total_repayable - (loan.total_repaid or 0)
+
+    # Find next unpaid EMI
+    next_emi = None
+    if loan.repayment_type == 'emi' and emi_schedule:
+        for emi in emi_schedule:
+            if not emi['is_paid']:
+                next_emi = emi
+                break
 
     return {
         'loan': loan,
@@ -466,8 +571,66 @@ def get_loan_details(loan_id):
             'emi_amount': loan.emi_amount,
             'repayment_type': loan.repayment_type,
             'total_repaid': loan.total_repaid,
-            'remaining': loan.get_remaining_amount() if loan.total_repayable else 0
+            'remaining': remaining
         },
         'emi_schedule': emi_schedule,
-        'repayments': repayments
+        'next_emi': next_emi,  # Add this for due date alerts
+        'repayments': repayment_list
     }
+
+# In loan_service.py or create a new validation_service.py:
+
+def validate_repayment_terms(loan, repayment_amount=None, emi_duration=None):
+    """
+    Validate repayment terms based on admin rules.
+    Returns (is_valid, error_message)
+    """
+    # Check minimum EMI duration rule (if admin has set it)
+    # This would require adding a field to Group model: min_emi_duration_months
+    if emi_duration is not None:
+        group = loan.group
+        if hasattr(group, 'min_emi_duration_months') and group.min_emi_duration_months:
+            if emi_duration < group.min_emi_duration_months:
+                return False, f"Minimum EMI duration is {group.min_emi_duration_months} months"
+
+    # Check if repayment amount meets minimum requirements
+    if repayment_amount is not None:
+        # Ensure at least one EMI worth is being paid
+        if loan.emi_amount and repayment_amount < loan.emi_amount:
+            return False, f"Minimum repayment amount is ₹{loan.emi_amount:,.0f} (one EMI)"
+
+    return True, ""
+
+
+# In loan_service.py, add this function:
+
+def can_regenerate_emi_schedule(loan_id):
+    """
+    Check if EMI schedule can be regenerated for a loan.
+
+    Returns: (can_regenerate, reason)
+    """
+    loan = LoanRequest.query.get(loan_id)
+    if not loan:
+        return False, "Loan not found"
+
+    # Check loan status
+    if loan.status not in [LoanStatus.PRE_APPROVED.value,
+                           LoanStatus.APPROVED.value,
+                           LoanStatus.DISBURSED.value]:
+        return False, f"Cannot regenerate EMI for loan in {loan.status} status"
+
+    # Check if any EMIs are paid
+    paid_emis = EMISchedule.query.filter_by(
+        loan_id=loan_id,
+        is_paid=True
+    ).count()
+
+    if paid_emis > 0:
+        return False, f"Cannot regenerate - {paid_emis} EMI(s) already paid"
+
+    # Check if loan is fully repaid
+    if loan.is_fully_repaid():
+        return False, "Loan is already fully repaid"
+
+    return True, "EMI schedule can be regenerated"

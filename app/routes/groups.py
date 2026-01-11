@@ -3,6 +3,7 @@ GROUP MANAGEMENT ROUTES
 =======================
 Clean, simplified group management.
 """
+from datetime import datetime
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
@@ -67,7 +68,8 @@ def create_group():
             db.session.commit()
 
             flash(f'Group "{name}" created successfully!', 'success')
-            return redirect(url_for('groups.view_group', group_id=new_group.id))
+            # REDIRECT TO ADD MEMBER PAGE INSTEAD OF VIEW GROUP
+            return redirect(url_for('groups.add_member_route', group_id=new_group.id))
 
         except Exception as e:
             db.session.rollback()
@@ -77,6 +79,7 @@ def create_group():
 
 
 # ============== VIEW SINGLE GROUP ==============
+# ============== VIEW SINGLE GROUP ==============
 @groups_bp.route('/groups/<int:group_id>')
 @login_required
 def view_group(group_id):
@@ -85,6 +88,12 @@ def view_group(group_id):
     if not is_group_member(current_user.id, group_id):
         flash('You are not a member of this group!', 'danger')
         return redirect(url_for('groups.list_groups'))
+
+    # Get active members count for delete group check
+    active_members_count = GroupMember.query.filter_by(
+        group_id=group_id,
+        is_active=True
+    ).count()
 
     members = GroupMember.query.filter_by(group_id=group_id, is_active=True).all()
     is_admin = is_group_admin(current_user.id, group_id)
@@ -118,10 +127,11 @@ def view_group(group_id):
         group=group,
         members=members,
         is_admin=is_admin,
-        wallet=group.wallet,
+        wallet=group.wallet, # Required for balance check
         pending_loans=pending_loans,
         awaiting_disbursement=awaiting_disbursement,
-        pending_repayments=pending_repayments
+        pending_repayments=pending_repayments,
+        active_members_count=active_members_count
     )
 
 
@@ -131,7 +141,9 @@ def view_group(group_id):
 def group_settings(group_id):
     group = Group.query.get_or_404(group_id)
 
-    if not is_group_admin(current_user.id, group_id):
+    # Check admin status
+    is_admin = is_group_admin(current_user.id, group_id)
+    if not is_admin:
         flash('Only admin can access settings!', 'danger')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
@@ -139,17 +151,28 @@ def group_settings(group_id):
         group.name = request.form.get('name', group.name).strip()
         group.description = request.form.get('description', group.description).strip()
         group.default_interest_rate = request.form.get('interest_rate', group.default_interest_rate, type=float)
-        group.default_loan_duration_months = request.form.get('loan_duration', group.default_loan_duration_months, type=int)
+        group.default_loan_duration_months = request.form.get('loan_duration', group.default_loan_duration_months,
+                                                              type=int)
         group.default_repayment_type = request.form.get('repayment_type', group.default_repayment_type)
         group.use_flat_rate = 'use_flat_rate' in request.form
+
+        # Save the new EMI duration field
+        group.min_emi_duration_months = request.form.get('min_emi_duration', type=int)
 
         db.session.commit()
         flash('Settings updated!', 'success')
         return redirect(url_for('groups.view_group', group_id=group_id))
 
-    return render_template('groups/settings.html', group=group)
+    # Fetch data needed for the Delete Group logic in settings.html
+    members = GroupMember.query.filter_by(group_id=group_id, is_active=True).all()
 
-
+    return render_template(
+        'groups/settings.html',
+        group=group,
+        is_admin=is_admin,
+        members=members,  # Required for members|length check
+        wallet=group.wallet  # Required for wallet.balance check
+    )
 # ============== ADD MEMBER ==============
 @groups_bp.route('/groups/<int:group_id>/add-member', methods=['GET', 'POST'])
 @login_required
@@ -279,3 +302,69 @@ def view_member(group_id, user_id):
         ledger=ledger,
         loans=loans
     )
+
+
+# In groups.py, add this route:
+
+@groups_bp.route('/groups/<int:group_id>/delete', methods=['POST'])
+@login_required
+def delete_group_route(group_id):
+    """Delete a group (admin only, only if no other members)"""
+    group = Group.query.get_or_404(group_id)
+
+    if not is_group_admin(current_user.id, group_id):
+        flash('Only admin can delete group!', 'danger')
+        return redirect(url_for('groups.view_group', group_id=group_id))
+
+    # Get active members count
+    active_members_count = GroupMember.query.filter_by(
+        group_id=group_id,
+        is_active=True
+    ).count()
+
+    if active_members_count > 1:
+        flash('Cannot delete group - there are other active members!', 'danger')
+        return redirect(url_for('groups.view_group', group_id=group_id))
+
+    # Check if there are any active loans
+    active_loans = LoanRequest.query.filter_by(
+        group_id=group_id,
+        is_active=True
+    ).filter(
+        LoanRequest.status.in_([
+            LoanStatus.PENDING.value,
+            LoanStatus.PRE_APPROVED.value,
+            LoanStatus.APPROVED.value,
+            LoanStatus.DISBURSED.value
+        ])
+    ).count()
+
+    if active_loans > 0:
+        flash('Cannot delete group - there are active loans!', 'danger')
+        return redirect(url_for('groups.view_group', group_id=group_id))
+
+    try:
+        # Soft delete the group
+        group.is_active = False
+        group.deleted_at = datetime.utcnow()
+        group.deleted_by = current_user.id
+
+        # Also soft delete wallet if exists
+        if group.wallet:
+            group.wallet.is_active = False
+
+        # Soft delete all active memberships
+        GroupMember.query.filter_by(
+            group_id=group_id,
+            is_active=True
+        ).update({'is_active': False})
+
+        db.session.commit()
+
+        flash(f'Group "{group.name}" has been deleted.', 'success')
+        return redirect(url_for('groups.list_groups'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting group: {str(e)}', 'danger')
+        return redirect(url_for('groups.view_group', group_id=group_id))

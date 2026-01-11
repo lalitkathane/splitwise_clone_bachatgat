@@ -107,8 +107,10 @@ def dashboard():
     groups = [m.group for m in memberships]
     group_ids = [m.group_id for m in memberships]
 
-    # Get pending votes count
+    # Get pending votes count AND a specific loan for voting
     pending_votes = 0
+    pending_loan_for_vote = None
+
     for membership in memberships:
         group_loans = LoanRequest.query.filter_by(
             group_id=membership.group_id,
@@ -124,16 +126,32 @@ def dashboard():
                 ).first()
                 if not existing_vote:
                     pending_votes += 1
+                    # Get the first loan that needs user's vote
+                    if not pending_loan_for_vote:
+                        pending_loan_for_vote = loan
 
-    # Get pending repayment approvals (for admins)
+    # Get pending repayment approvals (for admins) AND a specific loan for review
     pending_repayment_approvals = 0
+    pending_repayment_loan = None
+
     for membership in memberships:
         if membership.role == 'admin':
+            # Count pending repayments
             count = LoanRepayment.query.join(LoanRequest).filter(
                 LoanRequest.group_id == membership.group_id,
                 LoanRepayment.status == RepaymentStatus.PENDING.value
             ).count()
             pending_repayment_approvals += count
+
+            # Get first loan with pending repayments for admin review
+            if count > 0 and not pending_repayment_loan:
+                # Find a loan that has pending repayments
+                loan_with_pending = LoanRequest.query.join(LoanRepayment).filter(
+                    LoanRequest.group_id == membership.group_id,
+                    LoanRepayment.status == RepaymentStatus.PENDING.value
+                ).first()
+                if loan_with_pending:
+                    pending_repayment_loan = loan_with_pending
 
     # Get user's active loans
     active_loans = LoanRequest.query.filter(
@@ -263,6 +281,8 @@ def dashboard():
         groups=groups,
         pending_votes=pending_votes,
         pending_repayment_approvals=pending_repayment_approvals,
+        pending_loan_for_vote=pending_loan_for_vote,
+        pending_repayment_loan=pending_repayment_loan,
         active_loans=active_loans,
         total_outstanding=total_outstanding,
         total_contributions=total_contributions,

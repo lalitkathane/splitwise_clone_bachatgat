@@ -1,571 +1,635 @@
 {% extends 'base.html' %}
 
-{% block title %}Loan #{{ loan.id }} - ₹{{ "%.0f"|format(loan.amount) }}{% endblock %}
+{% block title %}
+Loan #{{ loan.id }} - ₹{{ "%.0f"|format(loan.amount) }}
+{% endblock %}
 
 {% block content %}
-<!-- Loan Header Card -->
-<div class="card mb-4 shadow-sm border-0">
-    <div class="card-body p-4">
-        <div class="row align-items-start align-items-lg-center">
-            <div class="col-lg-8">
-                <h2 class="mb-3 text-primary">
-                    <i class="bi bi-cash-coin me-2"></i>
-                    Loan Request: ₹{{ "%.2f"|format(loan.amount) }}
-                </h2>
-                <div class="mb-3">
-                    <span class="text-muted">Requested by</span>
-                    <strong class="ms-2">{{ loan.requester.name }}</strong>
-                    {% if loan.requested_by == current_user.id %}
-                    <span class="badge bg-info ms-2">You</span>
-                    {% endif %}
-                </div>
-                <div class="mb-3">
-                    <strong>Reason:</strong>
-                    <span class="ms-2">{{ loan.reason|default('Not specified', true) }}</span>
-                </div>
-                <small class="text-muted">
-                    <i class="bi bi-calendar3 me-1"></i>
-                    {{ loan.created_at.strftime('%d %b %Y at %I:%M %p') }}
-                    • <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-                         class="text-decoration-none fw-medium">{{ group.name }}</a>
-                </small>
-            </div>
+<!-- Breadcrumb Navigation -->
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb bg-transparent p-0 mb-2">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="text-decoration-none">
+                <i class="bi bi-people-fill me-1"></i> {{ group.name|title }}
+            </a>
+        </li>
+        <li class="breadcrumb-item active">Loan Details</li>
+    </ol>
+    <div class="d-flex align-items-center gap-3 fs-6 flex-wrap">
+        <span class="badge bg-light text-dark border">ID: #{{ loan.id }}</span>
+        <span class="vr d-none d-md-inline"></span>
+        <span class="text-muted">Requested by: <strong class="text-dark">{{ loan.requester.name }}</strong></span>
+        <span class="vr d-none d-md-inline"></span>
+        <span class="text-muted">Reason: <strong class="text-dark">{{ loan.reason }}</strong></span>
+    </div>
+</nav>
 
-            <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
-                <!-- Status Badge -->
-                <div class="d-inline-block mb-3">
-                    <span class="badge fs-5 px-4 py-3
-                        {% if loan.status == 'pending' %}bg-warning text-dark
-                        {% elif loan.status == 'pre_approved' %}bg-info text-white
-                        {% elif loan.status == 'approved' %}bg-success
-                        {% elif loan.status == 'rejected' %}bg-danger
-                        {% elif loan.status == 'disbursed' %}bg-primary
-                        {% elif loan.status == 'completed' %}bg-dark text-white
-                        {% endif %}">
-                        {% if loan.status == 'pending' %}
-                            <i class="bi bi-clock me-1"></i> Pending Votes
-                        {% elif loan.status == 'pre_approved' %}
-                            <i class="bi bi-hourglass-split me-1"></i> Pre-Approved
-                            <br><small>Awaiting Final Admin Approval</small>
-                        {% elif loan.status == 'approved' %}
-                            <i class="bi bi-check-circle me-1"></i> Approved
-                        {% elif loan.status == 'rejected' %}
-                            <i class="bi bi-x-circle me-1"></i> Rejected
-                        {% elif loan.status == 'disbursed' %}
-                            <i class="bi bi-cash-stack me-1"></i> Disbursed
-                        {% elif loan.status == 'completed' %}
-                            <i class="bi bi-trophy me-1"></i> Completed
-                        {% endif %}
-                    </span>
-                </div>
+<!-- Action Alerts Section -->
+{% if loan.status == 'disbursed' and details.next_emi and current_user.id == loan.requested_by %}
+    {% set days_left = (details.next_emi.due_date - today).days %}  <!-- FIXED: Removed .date() -->
+    <div class="alert alert-warning border-0 shadow-sm mb-4 d-flex align-items-center" role="alert">
+        <div class="flex-shrink-0">
+            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+        </div>
+        <div class="flex-grow-1">
+            <h6 class="alert-heading mb-1">EMI #{{ details.next_emi.installment }} Due in {{ days_left }} days</h6>
+            <p class="mb-0 small">Amount: ₹{{ "%.2f"|format(details.next_emi.emi_amount) }} • Due Date: {{ details.next_emi.due_date.strftime('%B %d, %Y') }}</p>
+        </div>
+        <a href="{{ url_for('loans.repay_loan', loan_id=loan.id) }}" class="btn btn-warning text-white ms-3">
+            <i class="bi bi-credit-card me-1"></i> Pay Now
+        </a>
+    </div>
+{% endif %}
 
-                <!-- Final Approve Button -->
-                {% if loan.status == 'pre_approved' and can_final_approve %}
-                <div class="mt-3">
-                    <form action="{{ url_for('loans.final_approve_loan', loan_id=loan.id) }}" method="POST">
-                        <button type="submit"
-                                class="btn btn-success btn-lg px-5 shadow"
-                                onclick="return confirm('Are you sure you want to finally approve this loan?')">
-                            <i class="bi bi-check-circle-fill me-2"></i> Final Approve Loan
-                        </button>
-                    </form>
-                </div>
-                {% endif %}
+{% if request.args.get('edited') == 'true' %}
+<div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i> Loan updated successfully!
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 
-                <!-- Auto-Approved Note -->
-                {% if loan.status == 'approved' %}
-                {% set admin_count = group.members.filter_by(role='admin', is_active=True).count() %}
-                {% if loan.requested_by == group.admin_id and admin_count == 1 %}
-                <div class="alert alert-info mt-3 py-2 small">
-                    <i class="bi bi-info-circle me-2"></i>
-                    <strong>Auto-approved:</strong> Applicant is the only admin in the group.
-                </div>
-                {% endif %}
-                {% endif %}
+{% if loan.status == 'disbursed' and loan.is_fully_repaid() and is_admin %}
+<div class="alert alert-success border-0 shadow-sm mb-4 d-flex align-items-center" role="alert">
+    <div class="flex-shrink-0">
+        <i class="bi bi-check-circle-fill fs-4 me-3"></i>
+    </div>
+    <div class="flex-grow-1">
+        <h6 class="alert-heading mb-1">Loan Fully Repaid</h6>
+        <p class="mb-0 small">This loan has been completely repaid. You can now close it.</p>
+    </div>
+    <form action="{{ url_for('loans.close_loan', loan_id=loan.id) }}" method="POST" class="ms-3">
+        <button type="submit" class="btn btn-success text-white" onclick="return confirm('Close this loan? This action cannot be undone.')">
+            <i class="bi bi-lock-fill me-1"></i> Close Loan
+        </button>
+    </form>
+</div>
+{% endif %}
 
-                <!-- Repayment Progress -->
-                {% if loan.status in ['disbursed', 'completed'] and loan.total_repayable %}
-                <div class="mt-4">
-                    <small class="text-muted d-block mb-2 fw-medium">Repayment Progress</small>
-                    {% set progress = (loan.total_repaid / loan.total_repayable * 100) %}
-                    <div class="progress rounded" style="height: 32px;">
-                        <div class="progress-bar bg-success fs-6 fw-bold"
-                             style="width: {{ progress }}%">
-                            {{ "%.0f"|format(progress) }}% Repaid
+<!-- Voting Section -->
+{% if loan.status == 'pending' %}
+    {% if loan.requested_by != current_user.id and not user_vote and can_vote %}
+    <div class="card border-0 shadow mb-4 overflow-hidden">
+        <div class="card-header bg-primary text-white py-2">
+            <h6 class="mb-0 small fw-bold text-uppercase tracking-wider">
+                <i class="bi bi-hand-thumbs-up-fill me-2"></i>Your Vote Required
+            </h6>
+        </div>
+        <div class="card-body p-3">
+            <form method="POST" action="{{ url_for('loans.vote_loan', loan_id=loan.id) }}">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-5 border-end">
+                        <div class="d-flex flex-column justify-content-center h-100">
+                            <p class="mb-1 small">
+                                <span class="text-muted">Loan Request:</span>
+                                <strong class="ms-1 text-dark">₹{{ "%.2f"|format(loan.amount) }}</strong>
+                                <span class="text-muted">by</span> {{ loan.requester.name }}
+                            </p>
+                            <p class="mb-0 small text-truncate">
+                                <span class="text-muted">Purpose:</span>
+                                <span class="ms-1 fst-italic">{{ loan.reason|default('Not specified', true) }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="flex-grow-1">
+                                <input type="text" name="comment" class="form-control form-control-sm"
+                                       placeholder="Add comment (optional)" autocomplete="off">
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" name="vote" value="approve" class="btn btn-success btn-sm px-3 fw-bold">
+                                    <i class="bi bi-check-circle me-1"></i> Approve
+                                </button>
+                                <button type="submit" name="vote" value="reject" class="btn btn-outline-danger btn-sm px-3 fw-bold">
+                                    <i class="bi bi-x-circle me-1"></i> Reject
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-                {% endif %}
+            </form>
+        </div>
+    </div>
+    {% elif user_vote %}
+    <div class="alert alert-light border shadow-sm mb-4 d-flex justify-content-between align-items-center">
+        <span class="small text-muted"><i class="bi bi-info-circle me-2"></i>You have already cast your vote.</span>
+        <span class="badge {% if user_vote.approved %}bg-success{% else %}bg-danger{% endif %} px-3 py-2">
+            YOUR VOTE: {{ 'APPROVED' if user_vote.approved else 'REJECTED' }}
+        </span>
+    </div>
+    {% elif loan.requested_by == current_user.id %}
+    <div class="alert alert-info border shadow-sm mb-4 d-flex justify-content-between align-items-center">
+        <span class="small"><i class="bi bi-hourglass-split me-2"></i>This is your loan request. Waiting for members to vote.</span>
+    </div>
+    {% endif %}
+{% endif %}
+
+<!-- Stats Grid -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 border-start border-primary border-4">
+            <div class="card-body text-center p-3">
+                <small class="text-muted d-block text-uppercase fw-bold x-small mb-1">Loan Amount</small>
+                <h4 class="fw-bold mb-0">₹{{ "%.0f"|format(loan.amount) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 border-start border-info border-4">
+            <div class="card-body text-center p-3">
+                <small class="text-muted d-block text-uppercase fw-bold x-small mb-1">Status</small>
+                <span class="badge {% if loan.status == 'pending' %}bg-warning text-dark{% elif loan.status in ['approved', 'disbursed', 'completed'] %}bg-success{% elif loan.status == 'pre_approved' %}bg-info{% else %}bg-secondary{% endif %} rounded-pill">
+                    {{ loan.status|replace('_', ' ')|title }}
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
+            <div class="card-body text-center p-3">
+                <small class="text-muted d-block text-uppercase fw-bold x-small mb-1">Repaid</small>
+                <h4 class="fw-bold mb-0 text-success">₹{{ "%.0f"|format(loan.total_repaid) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 border-start border-danger border-4">
+            <div class="card-body text-center p-3">
+                <small class="text-muted d-block text-uppercase fw-bold x-small mb-1">Remaining</small>
+                <h4 class="fw-bold mb-0 text-danger">₹{{ "%.0f"|format(loan.get_remaining_amount()) }}</h4>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Main Content Grid -->
+<!-- Main Content Split -->
 <div class="row g-4">
-    <!-- Voting Section -->
-    {% if loan.status == 'pending' %}
-    <!-- Voting Progress Card -->
-    <div class="col-lg-6">
-        <div class="card h-100 shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-bar-chart-line me-2"></i> Voting Progress
-            </div>
-            <div class="card-body">
-                <div class="mb-4">
-                    <div class="d-flex justify-content-between small text-muted mb-1">
-                        <span>Votes Cast</span>
-                        <span>{{ details.voting.votes_cast }} / {{ details.voting.eligible_voters }}</span>
-                    </div>
-                    {% set vote_progress = (details.voting.votes_cast / details.voting.eligible_voters * 100) if
-                    details.voting.eligible_voters > 0 else 0 %}
-                    <div class="progress" style="height: 28px;">
-                        <div class="progress-bar bg-info fw-bold" style="width: {{ vote_progress }}%">
-                            {{ "%.0f"|format(vote_progress) }}%
-                        </div>
-                    </div>
-                </div>
+    <!-- LEFT COLUMN -->
+    <div class="col-lg-8">
+        <!-- In detail (1).html, update the Loan Overview Card section: -->
 
-                <div class="row text-center g-3">
-                    <div class="col">
-                        <h3 class="text-success mb-0">{{ details.voting.approvals }}</h3>
-                        <small class="text-muted">Approved</small>
-                    </div>
-                    <div class="col">
-                        <h3 class="text-danger mb-0">{{ details.voting.rejections }}</h3>
-                        <small class="text-muted">Rejected</small>
-                    </div>
-                    <div class="col">
-                        <h3 class="text-warning mb-0">{{ details.voting.pending_votes }}</h3>
-                        <small class="text-muted">Pending</small>
-                    </div>
-                </div>
-
-                <div class="alert alert-light mt-4 small">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Need <strong>{{ details.voting.required_approvals }}</strong> approval{{ 's' if
-                    details.voting.required_approvals != 1 else '' }} to proceed.
-                </div>
-            </div>
+<!-- Loan Overview Card -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-4">
+        {% if loan.borrower_notes %}
+        <div class="p-3 bg-info-subtle rounded-3 mb-4">
+            <small class="text-info text-uppercase fw-bold d-block mb-2">Borrower Notes</small>
+            <p class="mb-0 small">{{ loan.borrower_notes|replace('\n', '<br>'|safe) }}</p>
         </div>
-    </div>
+        {% endif %}
 
-    <!-- Vote Action Card -->
-    <div class="col-lg-6">
-        <div class="card h-100 shadow-sm">
-            <div class="card-header bg-warning text-dark">
-                <i class="bi bi-hand-thumbs-up me-2"></i>
-                {% if can_vote %}Cast Your Vote{% else %}Your Vote{% endif %}
-            </div>
-            <div class="card-body d-flex align-items-center justify-content-center">
-                {% if loan.requested_by == current_user.id %}
-                <div class="text-center py-5">
-                    <i class="bi bi-hourglass-split text-warning" style="font-size: 4rem;"></i>
-                    <h5 class="mt-4">This is your loan request</h5>
-                    <p class="text-muted">Waiting for group members to vote...</p>
-                </div>
-                {% elif user_vote %}
-                <div class="text-center py-5">
-                    {% if user_vote.approved %}
-                    <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
-                    <h4 class="mt-4 text-success">You Approved</h4>
-                    {% else %}
-                    <i class="bi bi-x-circle-fill text-danger" style="font-size: 4rem;"></i>
-                    <h4 class="mt-4 text-danger">You Rejected</h4>
-                    {% endif %}
-                    {% if user_vote.comment %}
-                    <p class="text-muted mt-3 fst-italic">"{{ user_vote.comment }}"</p>
-                    {% endif %}
-                </div>
-                {% elif can_vote %}
-                <form method="POST" action="{{ url_for('loans.vote_loan', loan_id=loan.id) }}" class="w-100">
-                    <div class="d-grid gap-3 mb-4">
-                        <button type="submit" name="vote" value="approve"
-                                class="btn btn-success btn-lg shadow-sm">
-                            <i class="bi bi-check-lg me-2"></i> Approve Loan
-                        </button>
-                        <button type="submit" name="vote" value="reject"
-                                class="btn btn-danger btn-lg shadow-sm">
-                            <i class="bi bi-x-lg me-2"></i> Reject Loan
-                        </button>
-                    </div>
-                    <div>
-                        <input type="text" name="comment" class="form-control"
-                               placeholder="Add optional comment..." autocomplete="off">
-                    </div>
-                </form>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="bi bi-info-circle text-muted" style="font-size: 4rem;"></i>
-                    <p class="mt-4 text-muted">{{ vote_reason }}</p>
-                </div>
-                {% endif %}
-            </div>
+        {% if is_admin and loan.admin_remarks %}
+        <div class="p-3 bg-warning-subtle rounded-3 mb-4">
+            <small class="text-warning text-uppercase fw-bold d-block mb-2">Admin Remarks</small>
+            <p class="mb-0 small">{{ loan.admin_remarks|replace('\n', '<br>'|safe) }}</p>
         </div>
-    </div>
-    {% endif %}
+        {% endif %}
 
-    <!-- Loan Terms & Financial Status -->
-    {% if loan.status in ['pre_approved', 'approved', 'disbursed', 'completed'] %}
-    <!-- Loan Terms -->
-    <div class="col-lg-6">
-        <div class="card h-100 shadow-sm">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-file-earmark-text me-2"></i> Loan Terms
+        {% if loan.status == 'pending' %}
+            <h6 class="fw-bold mb-3 small">VOTING PROGRESS</h6>
+            {% set vote_progress = (details.voting.votes_cast / details.voting.eligible_voters * 100) if details.voting.eligible_voters > 0 else 0 %}
+            <div class="progress rounded-pill mb-2" style="height: 12px;">
+                <div class="progress-bar bg-primary" style="width: {{ vote_progress }}%"></div>
             </div>
-            <div class="card-body">
-                <table class="table table-borderless mb-0">
-                    <tr>
-                        <td class="text-muted">Principal Amount</td>
-                        <td class="text-end fw-bold">₹{{ "%.2f"|format(loan.approved_amount) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Interest Rate</td>
-                        <td class="text-end">{{ loan.interest_rate }}% per year</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Duration</td>
-                        <td class="text-end">{{ loan.loan_duration_months }} months</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Repayment Type</td>
-                        <td class="text-end">
-                            {% if loan.repayment_type == 'emi' %}
-                            EMI (Monthly)
-                            {% else %}
-                            Bullet (Lump Sum)
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr class="border-top pt-2">
-                        <td class="text-muted">Total Interest</td>
-                        <td class="text-end text-warning fw-bold">₹{{ "%.2f"|format(loan.total_interest or 0) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted fw-bold">Total Repayable</td>
-                        <td class="text-end fw-bold fs-5">₹{{ "%.2f"|format(loan.total_repayable or 0) }}</td>
-                    </tr>
-                    {% if loan.emi_amount %}
-                    <tr class="border-top pt-2">
-                        <td class="text-muted">Monthly EMI</td>
-                        <td class="text-end text-primary fw-bold fs-5">₹{{ "%.2f"|format(loan.emi_amount) }}</td>
-                    </tr>
-                    {% endif %}
+            <div class="d-flex justify-content-between x-small text-muted">
+                <span>{{ details.voting.votes_cast }} / {{ details.voting.eligible_voters }} members voted</span>
+                <div class="d-flex gap-2">
+                    <span class="fw-bold text-success">{{ details.voting.approvals }} Approvals</span>
+                    <span class="fw-bold text-danger">{{ details.voting.rejections }} Rejections</span>
+                </div>
+            </div>
+            <div class="mt-2 text-muted x-small">
+                <i class="bi bi-info-circle me-1"></i> Requires {{ details.voting.required_approvals }} approvals
+            </div>
+
+        {% elif loan.status in ['disbursed', 'completed'] %}
+            <h6 class="fw-bold mb-3 small">REPAYMENT PROGRESS</h6>
+            {% set repay_progress = (loan.total_repaid / loan.total_repayable * 100) if loan.total_repayable else 0 %}
+            <div class="progress rounded-pill mb-2" style="height: 12px;">
+                <div class="progress-bar bg-success" style="width: {{ repay_progress }}%"></div>
+            </div>
+            <div class="d-flex justify-content-between x-small text-muted">
+                <span>{{ "%.1f"|format(repay_progress) }}% Collected</span>
+                <span class="fw-bold">Total: ₹{{ "%.0f"|format(loan.total_repayable or 0) }}</span>
+            </div>
+            {% elif loan.status == 'disbursed' and loan.is_fully_repaid() %}
+            <div class="mt-4 pt-3 border-top">
+                <div class="alert alert-success mb-0 py-2">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    Loan fully repaid! Awaiting admin closure.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+        <!-- Pending Repayments (Admin Only) -->
+        {% if is_admin and pending_repayments %}
+        <div class="card border-0 shadow-sm mb-4 border-start border-warning border-4">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-warning-emphasis"><i class="bi bi-clock-history me-2"></i>Pending Repayment Approvals</h6>
+                <span class="badge bg-warning rounded-pill">{{ pending_repayments|length }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle table-hover mb-0">
+                    <thead class="bg-light x-small text-muted">
+                        <tr>
+                            <th class="ps-4">AMOUNT</th>
+                            <th>DETAILS</th>
+                            <th>SUBMITTED</th>
+                            <th class="text-end pe-4">ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for repayment in pending_repayments %}
+                        <tr class="small">
+                            <td class="ps-4 fw-bold">₹{{ "%.2f"|format(repayment.amount) }}</td>
+                            <td class="text-muted">
+                                <span class="d-block">P: ₹{{ "%.0f"|format(repayment.principal_component or 0) }}</span>
+                                <span class="d-block">I: ₹{{ "%.0f"|format(repayment.interest_component or 0) }}</span>
+                            </td>
+                            <td>{{ repayment.submitted_at.strftime('%d %b') }}</td>
+                            <td class="text-end pe-4">
+                                <div class="d-flex justify-content-end gap-1">
+                                    <form action="{{ url_for('wallet.approve_repayment_route', repayment_id=repayment.id) }}" method="POST">
+                                        <button type="submit" class="btn btn-success btn-sm p-1 px-2" onclick="return confirm('Approve this repayment?')">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-danger btn-sm p-1 px-2" data-bs-toggle="modal" data-bs-target="#rejectModal{{ repayment.id }}">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Reject Modal -->
+                                <div class="modal fade" id="rejectModal{{ repayment.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form action="{{ url_for('wallet.reject_repayment', repayment_id=repayment.id) }}" method="POST">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Reject Repayment</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body text-start">
+                                                    <p>Reject repayment of <strong>₹{{ "%.2f"|format(repayment.amount) }}</strong>?</p>
+                                                    <label class="form-label small text-muted">Reason</label>
+                                                    <textarea name="reason" class="form-control" required></textarea>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="submit" class="btn btn-danger">Confirm Reject</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
                 </table>
             </div>
         </div>
-    </div>
+        {% endif %}
 
-    <!-- Financial Status -->
-           <!-- Financial Status -->
-        <div class="col-lg-6">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <i class="bi bi-bank2 me-2"></i> Financial Status
-                </div>
-                <div class="card-body">
-                    {% if loan.status == 'pre_approved' %}
-                        <div class="text-center py-5">
-                            <i class="bi bi-clock-history text-info" style="font-size: 4rem;"></i>
-                            <h5 class="mt-4">Awaiting Final Admin Approval</h5>
-                            <p class="text-muted">Majority of members have voted yes.</p>
-                        </div>
-
-                    {% elif loan.status == 'approved' and not loan.disbursed_at %}
-                        <!-- Ready for Disbursement - Clean & Single Version -->
-                        <div class="text-center py-5">
-                            <i class="bi bi-cash-stack text-success" style="font-size: 4rem;"></i>
-                            <h5 class="mt-4 mb-4">Ready for Disbursement</h5>
-                            <div class="mb-4">
-                                <p class="mb-2">
-                                    <strong>Loan Amount:</strong>
-                                    ₹{{ "%.2f"|format(loan.approved_amount) }}
-                                </p>
-                                <p class="mb-0">
-                                    <strong>Current Wallet Balance:</strong>
-                                    ₹{{ "%.2f"|format(group.wallet.balance) }}
-                                </p>
-                            </div>
-
-                            {% if is_admin %}
-                                <form action="{{ url_for('wallet.disburse', loan_id=loan.id) }}" method="POST">
-                                    <button type="submit"
-                                            class="btn btn-success btn-lg px-5 shadow-sm"
-                                            onclick="return confirm('Disburse ₹{{ "%.2f"|format(loan.approved_amount) }} to {{ loan.requester.name }}?')">
-                                        <i class="bi bi-send-check me-2"></i> Disburse Loan Now
-                                    </button>
-                                </form>
-                                <small class="text-muted d-block mt-3">
-                                    Funds will be transferred from the group wallet.
-                                </small>
-                            {% else %}
-                                <p class="text-muted mt-4">The admin will disburse the loan soon.</p>
-                            {% endif %}
-                        </div>
-
-                    {% else %}
-                        <!-- Active or Completed Loan -->
-                        <div class="text-center mb-4">
-                            <div class="row g-4">
-                                <div class="col">
-                                    <h5 class="text-primary mb-1">₹{{ "%.0f"|format(loan.total_repayable or 0) }}</h5>
-                                    <small class="text-muted">Total Repayable</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-success mb-1">₹{{ "%.0f"|format(loan.total_repaid) }}</h5>
-                                    <small class="text-muted">Paid</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-danger mb-1">₹{{ "%.0f"|format(loan.get_remaining_amount()) }}</h5>
-                                    <small class="text-muted">Remaining</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        {% set repay_progress = (loan.total_repaid / loan.total_repayable * 100) if loan.total_repayable else 0 %}
-                        <div class="progress mb-4" style="height: 36px;">
-                            <div class="progress-bar bg-success fs-5 fw-bold" style="width: {{ repay_progress }}%">
-                                {{ "%.0f"|format(repay_progress) }}% Repaid
-                            </div>
-                        </div>
-
-                        {% if loan.status == 'disbursed' and can_repay %}
-                            <a href="{{ url_for('loans.repay_loan', loan_id=loan.id) }}"
-                               class="btn btn-warning btn-lg w-100 shadow-sm">
-                                <i class="bi bi-cash-coin me-2"></i> Make Repayment
-                            </a>
-                        {% endif %}
-
-                        {% if loan.status == 'completed' %}
-                            <div class="alert alert-success text-center mt-4">
-                                <i class="bi bi-trophy me-2"></i>
-                                <strong>Congratulations!</strong> Loan fully repaid 🎉
-                            </div>
-                        {% endif %}
-                    {% endif %}
+        <!-- EMI Schedule Preview -->
+        {% if details.emi_schedule %}
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">Recent Installments</h6>
+                <div>
+                    <a href="{{ url_for('loans.view_emi_schedule', loan_id=loan.id) }}" class="text-decoration-none x-small fw-bold me-3">View Full Schedule</a>
+                    <span class="badge bg-light text-dark">
+                        {{ details.emi_schedule|selectattr('is_paid')|list|length }}/{{ details.emi_schedule|length }} paid
+                    </span>
                 </div>
             </div>
+            <div class="table-responsive">
+                <table class="table align-middle table-hover mb-0">
+                    <thead class="bg-light x-small text-muted">
+                        <tr>
+                            <th class="ps-4">#</th>
+                            <th>DATE</th>
+                            <th>AMOUNT</th>
+                            <th class="text-end pe-4">STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emi in details.emi_schedule[:5] %}
+                        <tr class="small">
+                            <td class="ps-4 text-muted">{{ emi.installment }}</td>
+                            <td>{{ emi.due_date.strftime('%d %b %Y') }}</td>
+                            <td class="fw-bold">₹{{ "%.2f"|format(emi.emi_amount) }}</td>
+                            <td class="text-end pe-4">
+                                {% if emi.is_paid %}
+                                    <span class="text-success small"><i class="bi bi-check-circle-fill me-1"></i> Paid</span>
+                                {% else %}
+                                    {% set days_overdue = (today - emi.due_date).days %}
+                                    {% if days_overdue > 0 %}
+                                        <span class="badge bg-danger text-white fw-normal">Overdue {{ days_overdue }} days</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark border fw-normal">Pending</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-    {% endif %}
-</div>
+        {% endif %}
 
-<!-- Pending Repayments (Admin Only) -->
-{% if is_admin and pending_repayments %}
-<div class="card mt-4 shadow-sm border-warning">
-    <div class="card-header bg-warning text-dark">
-        <i class="bi bi-clock-history me-2"></i>
-        Pending Repayment Approvals ({{ pending_repayments|length }})
+        <!-- Vote History -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">Voting History</h6>
+                <span class="badge bg-light text-dark">{{ all_votes|length }} votes</span>
+            </div>
+            {% if all_votes %}
+            <div class="table-responsive">
+                <table class="table align-middle table-hover mb-0">
+                    <thead class="bg-light x-small text-muted">
+                        <tr>
+                            <th class="ps-4">MEMBER</th>
+                            <th>VOTE</th>
+                            <th>COMMENT</th>
+                            <th class="text-end pe-4">DATE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for vote in all_votes %}
+                        <tr class="small">
+                            <td class="ps-4 fw-bold">
+                                {{ vote.approver.name }}
+                                {% if vote.approver.id == current_user.id %}<span class="badge bg-light text-dark ms-1">You</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if vote.approved %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Approved</span>
+                                {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rejected</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted fst-italic">{{ vote.comment|default('-', true)|truncate(40) }}</td>
+                            <td class="text-end pe-4 text-muted">{{ vote.voted_at.strftime('%d %b %Y') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted small">
+                <i class="bi bi-hourglass me-1"></i> No votes cast yet.
+            </div>
+            {% endif %}
+        </div>
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                <tr>
-                    <th>Amount</th>
-                    <th>Breakdown</th>
-                    <th>Submitted</th>
-                    <th>Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for repayment in pending_repayments %}
-                <tr>
-                    <td>
-                        <strong class="fs-5">₹{{ "%.2f"|format(repayment.amount) }}</strong>
-                    </td>
-                    <td>
-                        <small class="text-muted">
-                            Principal: ₹{{ "%.2f"|format(repayment.principal_component or 0) }}<br>
-                            Interest: ₹{{ "%.2f"|format(repayment.interest_component or 0) }}
-                        </small>
-                    </td>
-                    <td>{{ repayment.submitted_at.strftime('%d %b %Y, %I:%M %p') }}</td>
-                    <td>
-                        <form action="{{ url_for('wallet.approve_repayment_route', repayment_id=repayment.id) }}"
-                              method="POST" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-success me-2"
-                                    onclick="return confirm('Approve this repayment?')">
-                                <i class="bi bi-check-lg"></i> Approve
-                            </button>
-                        </form>
-                        <button type="button" class="btn btn-sm btn-danger"
-                                data-bs-toggle="modal" data-bs-target="#rejectModal{{ repayment.id }}">
-                            <i class="bi bi-x-lg"></i> Reject
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-lg-4">
+        <!-- Actions Panel -->
+        <div class="card border-0 shadow-sm bg-dark text-white mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-shield-lock me-2"></i>Actions</h6>
+                    {% if is_admin %}
+                    <a href="{{ url_for('loans.loan_audit_logs', loan_id=loan.id) }}" class="text-white-50 small text-decoration-none">
+                        <i class="bi bi-list-check me-1"></i> Audit Logs
+                    </a>
+                    {% endif %}
+                </div>
+
+                <!-- Action Logic -->
+                {% if loan.status == 'pre_approved' and can_final_approve %}
+                    <p class="small text-white-50 mb-3">Majority voted yes. Final admin approval required.</p>
+                    <form action="{{ url_for('loans.final_approve_loan', loan_id=loan.id) }}" method="POST">
+                        <button type="submit" class="btn btn-success w-100 py-2 fw-bold mb-2" onclick="return confirm('Confirm Final Approval?')">
+                            <i class="bi bi-check-circle-fill me-2"></i>Final Approve
                         </button>
+                    </form>
 
-                        <!-- Reject Modal -->
-                        <div class="modal fade" id="rejectModal{{ repayment.id }}">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form action="{{ url_for('wallet.reject_repayment', repayment_id=repayment.id) }}"
-                                          method="POST">
-                                        <div class="modal-header bg-danger text-white">
-                                            <h5 class="modal-title">Reject Repayment</h5>
-                                            <button type="button" class="btn-close btn-close-white"
-                                                    data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <p>Are you sure you want to reject this repayment of <strong>₹{{
-                                                "%.2f"|format(repayment.amount) }}</strong>?</p>
-                                            <div class="mb-3">
-                                                <label class="form-label">Reason (required)</label>
-                                                <textarea name="reason" class="form-control" rows="3"
-                                                          placeholder="e.g., Amount mismatch, missing proof..."
-                                                          required></textarea>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                                Cancel
-                                            </button>
-                                            <button type="submit" class="btn btn-danger">Reject</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
+                {% elif loan.status == 'approved' and not loan.disbursed_at and is_admin %}
+                    <div class="mb-3 small">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-white-50">Wallet Balance:</span>
+                            <span>₹{{ "%.2f"|format(group.wallet.balance) }}</span>
                         </div>
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-white-50">Loan Amount:</span>
+                            <span>₹{{ "%.2f"|format(loan.approved_amount) }}</span>
+                        </div>
+                    </div>
+                    <form action="{{ url_for('wallet.disburse', loan_id=loan.id) }}" method="POST">
+                        <button class="btn btn-primary w-100 py-2 fw-bold" onclick="return confirm('Transfer funds now?')">
+                            <i class="bi bi-send me-2"></i>Disburse Funds
+                        </button>
+                    </form>
+
+                {% elif loan.status == 'disbursed' and can_repay and current_user.id == loan.requested_by %}
+                    <a href="{{ url_for('loans.repay_loan', loan_id=loan.id) }}" class="btn btn-warning w-100 py-2 fw-bold text-dark mb-2">
+                        <i class="bi bi-cash-coin me-2"></i>Make Repayment
+                    </a>
+
+                {% else %}
+                    <p class="small text-white-50 mb-2 text-center">No pending actions</p>
+                {% endif %}
+
+                <!-- Admin Actions -->
+                {% if is_admin %}
+                <hr class="my-3 text-white-50">
+                <div class="d-grid gap-2">
+                    {% if loan.status == 'disbursed' and loan.is_fully_repaid() %}
+                    <form action="{{ url_for('loans.close_loan', loan_id=loan.id) }}" method="POST">
+                        <button type="submit" class="btn btn-success w-100 py-2 fw-bold" onclick="return confirm('Close this loan? This action cannot be undone.')">
+                            <i class="bi bi-lock-fill me-2"></i> Close Loan
+                        </button>
+                    </form>
+                    {% endif %}
+
+                </div>
+                {% endif %}
+            </div>
         </div>
-    </div>
+
+        <!-- Loan Terms -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">Loan Terms</h6>
+                {% if is_admin %}
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editLoanModal">
+                    <i class="bi bi-pencil-square me-1"></i> Edit
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Interest Rate</span>
+                    <span class="fw-bold">{{ loan.interest_rate or group.default_interest_rate }}% /yr</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Duration</span>
+                    <span class="fw-bold">{{ loan.loan_duration_months }} Months</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Repayment</span>
+                    <span class="fw-bold text-uppercase">{{ loan.repayment_type or 'Not set' }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3 small border-top pt-2">
+                    <span class="text-muted">Total Interest</span>
+                    <span class="fw-bold text-warning">₹{{ "%.2f"|format(loan.total_interest or 0) }}</span>
+                </div>
+                <hr>
+                {% if loan.emi_amount %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-primary fw-bold small">MONTHLY EMI</span>
+                    <span class="h5 fw-bold text-primary mb-0">₹{{ "%.2f"|format(loan.emi_amount) }}</span>
+                </div>
+                {% else %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-primary fw-bold small">TOTAL PAYABLE</span>
+                    <span class="h5 fw-bold text-primary mb-0">₹{{ "%.2f"|format(loan.total_repayable or 0) }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Important Dates -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-4">Important Dates</h6>
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Requested</span>
+                    <span class="fw-bold">{{ loan.created_at.strftime('%d %b %Y') }}</span>
+                </div>
+                {% if loan.approved_at %}
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Approved</span>
+                    <span class="fw-bold">{{ loan.approved_at.strftime('%d %b %Y') }}</span>
+                </div>
+                {% endif %}
+                {% if loan.disbursed_at %}
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Disbursed</span>
+                    <span class="fw-bold">{{ loan.disbursed_at.strftime('%d %b %Y') }}</span>
+                </div>
+                {% endif %}
+                {% if loan.expected_completion %}
+                <div class="d-flex justify-content-between mb-3 small">
+                    <span class="text-muted">Expected Completion</span>
+                    <span class="fw-bold">{{ loan.expected_completion.strftime('%d %b %Y') }}</span>
+                </div>
+                {% endif %}
+                <!-- In detail (1).html, add this to the Important Dates section: -->
+{% if loan.last_updated_at %}
+<div class="d-flex justify-content-between mb-3 small">
+    <span class="text-muted">Last Updated</span>
+    <span class="fw-bold">{{ loan.last_updated_at.strftime('%d %b %Y') }}</span>
 </div>
 {% endif %}
-
-<!-- EMI Schedule Preview -->
-{% if details.emi_schedule %}
-<div class="card mt-4 shadow-sm">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <h6 class="mb-0">
-            <i class="bi bi-calendar-check me-2"></i>
-            EMI Schedule (First 6 Installments)
-        </h6>
-        <a href="{{ url_for('loans.view_emi_schedule', loan_id=loan.id) }}"
-           class="btn btn-outline-light btn-sm px-4 d-flex align-items-center gap-2">
-            <i class="bi bi-arrow-right-circle"></i>
-            View Full Schedule
-        </a>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="table-light">
-                <tr class="text-center text-muted small">
-                    <th>#</th>
-                    <th>Due Date</th>
-                    <th>EMI Amount</th>
-                    <th>Principal</th>
-                    <th>Interest</th>
-                    <th>Status</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for emi in details.emi_schedule[:6] %}
-                <tr class="{% if emi.is_paid %}table-success{% else %}table-light{% endif %}">
-                    <td class="text-center fw-bold">{{ emi.installment }}</td>
-                    <td class="text-center">{{ emi.due_date.strftime('%d %b %Y') }}</td>
-                    <td class="text-center fw-medium">₹{{ "%.0f"|format(emi.emi_amount) }}</td>
-                    <td class="text-center">₹{{ "%.0f"|format(emi.principal) }}</td>
-                    <td class="text-center">₹{{ "%.0f"|format(emi.interest) }}</td>
-                    <td class="text-center">
-                        {% if emi.is_paid %}
-                        <span class="badge bg-success px-3 py-2">Paid</span>
-                        {% else %}
-                        <span class="badge bg-warning text-dark px-3 py-2">Due</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+            </div>
         </div>
-        {% if details.emi_schedule|length > 6 %}
-        <div class="card-footer bg-light text-center py-3">
-            <small class="text-muted">
-                Showing first 6 of {{ details.emi_schedule|length }} installments
-            </small>
-        </div>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
-
-<!-- All Votes Table -->
-<div class="card mt-4 shadow-sm">
-    <div class="card-header bg-light">
-        <i class="bi bi-list-check me-2"></i>
-        All Votes ({{ all_votes|length }})
-    </div>
-    <div class="card-body">
-        {% if all_votes %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light small text-muted">
-                <tr>
-                    <th>Member</th>
-                    <th>Vote</th>
-                    <th>Comment</th>
-                    <th>Date</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for vote in all_votes %}
-                <tr>
-                    <td>
-                        <i class="bi bi-person-circle me-2 text-primary"></i>
-                        {{ vote.approver.name }}
-                        {% if vote.approver.id == current_user.id %}
-                        <span class="badge bg-info ms-2">You</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if vote.approved %}
-                        <span class="badge bg-success px-3">
-                                    <i class="bi bi-check me-1"></i> Approved
-                                </span>
-                        {% else %}
-                        <span class="badge bg-danger px-3">
-                                    <i class="bi bi-x me-1"></i> Rejected
-                                </span>
-                        {% endif %}
-                    </td>
-                    <td class="text-muted small">
-                        {{ vote.comment|default('-', true) }}
-                    </td>
-                    <td class="text-muted small">
-                        {{ vote.voted_at.strftime('%d %b %Y') }}
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-center text-muted py-5 mb-0">
-            <i class="bi bi-clock-history" style="font-size: 3rem;"></i><br>
-            No votes recorded yet.
-        </p>
-        {% endif %}
     </div>
 </div>
 
-<!-- Navigation Buttons -->
-<div class="mt-5 d-flex flex-wrap gap-3 justify-content-center justify-content-md-start">
-    <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-       class="btn btn-outline-secondary px-4">
-        <i class="bi bi-arrow-left me-2"></i> Back to Group
+<!-- Footer Buttons -->
+<div class="mt-4 d-flex flex-wrap gap-2">
+    <a href="{{ url_for('groups.view_group', group_id=group.id) }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to Group
     </a>
-    <a href="{{ url_for('loans.list_loans', group_id=group.id) }}"
-       class="btn btn-outline-primary px-4">
-        <i class="bi bi-list-ul me-2"></i> All Loans
+    <a href="{{ url_for('loans.list_loans', group_id=group.id) }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-list-ul me-1"></i> All Loans
     </a>
     {% if loan.status in ['disbursed', 'completed'] %}
-    <a href="{{ url_for('loans.repayment_history', loan_id=loan.id) }}"
-       class="btn btn-outline-info px-4">
-        <i class="bi bi-clock-history me-2"></i> Repayment History
+    <a href="{{ url_for('loans.repayment_history', loan_id=loan.id) }}" class="btn btn-outline-info btn-sm">
+        <i class="bi bi-clock-history me-1"></i> Repayment History
+    </a>
+    {% endif %}
+    {% if is_admin %}
+    <a href="{{ url_for('loans.loan_audit_logs', loan_id=loan.id) }}" class="btn btn-outline-warning btn-sm">
+        <i class="bi bi-list-check me-1"></i> Audit Logs
     </a>
     {% endif %}
 </div>
+
+<!-- Edit Loan Modal (Admin Only) -->
+{% if is_admin %}
+<div class="modal fade" id="editLoanModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ url_for('loans.edit_loan', loan_id=loan.id) }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Loan #{{ loan.id }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reason for Changes</label>
+                        <textarea name="change_reason" class="form-control" rows="2" placeholder="Explain why you are making these changes..." required></textarea>
+                        <div class="form-text">This will be recorded in the audit log.</div>
+                    </div>
+
+                    <div class="row g-3">
+                        {% if loan.status in ['pending', 'pre_approved'] %}
+                        <div class="col-md-6">
+                            <label class="form-label">Loan Amount (₹)</label>
+                            <input type="number" name="amount" class="form-control" step="0.01" min="1"
+                                   value="{{ loan.amount }}" {% if loan.status != 'pending' %}readonly{% endif %}>
+                            <div class="form-text">Can only be changed while pending.</div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-6">
+                            <label class="form-label">Interest Rate (%)</label>
+                            <input type="number" name="interest_rate" class="form-control" step="0.01" min="0"
+                                   value="{{ loan.interest_rate or group.default_interest_rate }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Duration (Months)</label>
+                            <input type="number" name="loan_duration" class="form-control" min="1"
+                                   value="{{ loan.loan_duration_months }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Repayment Type</label>
+                            <select name="repayment_type" class="form-select">
+                                <option value="emi" {% if loan.repayment_type == 'emi' %}selected{% endif %}>EMI</option>
+                                <option value="bullet" {% if loan.repayment_type == 'bullet' %}selected{% endif %}>Bullet Payment</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="form-label fw-bold">Add Admin Remarks (Optional)</label>
+                        <textarea name="remarks" class="form-control" rows="2" placeholder="Internal notes for admins..."></textarea>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label fw-bold">Add Borrower Notes (Optional)</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Notes visible to borrower..."></textarea>
+                    </div>
+
+                    {% if loan.status in ['pre_approved', 'approved', 'disbursed'] %}
+                    <div class="alert alert-warning mt-3 small">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Changing financial terms will recalculate the entire EMI schedule. This cannot be undone if EMIs are already paid.
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('Save changes to this loan?')">
+                        <i class="bi bi-save me-1"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .x-small { font-size: 0.75rem; }
+    .tracking-wider { letter-spacing: 0.05em; }
+</style>
 {% endblock %}

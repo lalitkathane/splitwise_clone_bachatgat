@@ -27,14 +27,22 @@
         {% if pending_votes > 0 %}
         <div class="alert alert-warning d-flex justify-content-between align-items-center py-2 mb-2">
             <span><i class="bi bi-exclamation-triangle"></i> {{ pending_votes }} loan request(s) need your vote</span>
+            {% if pending_loan_for_vote %}
+            <a href="{{ url_for('loans.view_loan', loan_id=pending_loan_for_vote.id) }}" class="btn btn-sm btn-warning">Vote Now</a>
+            {% else %}
             <a href="{{ url_for('loans.my_loans') }}" class="btn btn-sm btn-warning">Vote Now</a>
+            {% endif %}
         </div>
         {% endif %}
 
         {% if pending_repayment_approvals > 0 %}
         <div class="alert alert-info d-flex justify-content-between align-items-center py-2 mb-0">
             <span><i class="bi bi-clock-history"></i> {{ pending_repayment_approvals }} repayment(s) awaiting approval</span>
-            <a href="{{ url_for('loans.my_loans') }}" class="btn btn-sm btn-info">Review</a>
+            {% if pending_repayment_loan %}
+            <a href="{{ url_for('loans.view_loan', loan_id=pending_repayment_loan.id) }}" class="btn btn-sm btn-info">Review</a>
+            {% else %}
+            <a href="{{ url_for('admin.pending_repayments') }}" class="btn btn-sm btn-info">Review</a>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -112,43 +120,30 @@
                 {% if groups %}
                 <ul class="list-group list-group-flush">
                     {% for group in groups[:4] %}
-
-
-<a href="{{ url_for('groups.view_group', group_id=group.id) }}"
-   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3">
-
-  <div class="d-flex align-items-center flex-grow-1">
-    <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-         style="width: 40px; height: 40px;">
-      <i class="bi bi-people-fill"></i>
-    </div>
-
-    <div class="flex-grow-1">
-      <div class="fw-bold text-dark mb-0">
-        {{ group.name[:30] }}{% if group.name|length > 25 %}...{% endif %}
-      </div>
-      <div class="text-muted" style="font-size: 0.85rem;">
-        {{ group.get_active_member_count() }} members
-        {% if group.wallet %}
-          <span class="mx-1">-</span>
-          <span class="text-success fw-medium">
-            ₹{{ "%.0f"|format(group.wallet.balance) }}
-          </span>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <i class="bi bi-chevron-right text-muted"></i>
-</a>
-
-
-
-
-
-
-
-
+                    <a href="{{ url_for('groups.view_group', group_id=group.id) }}"
+                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3">
+                        <div class="d-flex align-items-center flex-grow-1">
+                            <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                 style="width: 40px; height: 40px;">
+                                <i class="bi bi-people-fill"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark mb-0">
+                                    {{ group.name[:30] }}{% if group.name|length > 25 %}...{% endif %}
+                                </div>
+                                <div class="text-muted" style="font-size: 0.85rem;">
+                                    {{ group.get_active_member_count() }} members
+                                    {% if group.wallet %}
+                                    <span class="mx-1">-</span>
+                                    <span class="text-success fw-medium">
+                                        ₹{{ "%.0f"|format(group.wallet.balance) }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </a>
                     {% endfor %}
                 </ul>
                 {% else %}
